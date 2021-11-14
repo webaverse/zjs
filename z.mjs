@@ -514,8 +514,8 @@ function applyUpdate(zdoc, uint8Array, transactionOrigin) {
   index += Uint32Array.BYTES_PER_ELEMENT;
   switch (method) {
     case MESSAGES.STATE_RESET: {
-      const data = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength);
-      const state = zbdecode(data);
+      const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength);
+      const state = zbdecode(encodedData);
       zdoc.setState(state);
       break;
     }
