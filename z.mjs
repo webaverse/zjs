@@ -323,3 +323,7 @@ const Z = {
   encodeStateAsUpdate,
 };
 export default Z;
+window.Z = Z;
+
+import * as Y from 'yjs';
+window.Y = Y;
