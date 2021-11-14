@@ -319,6 +319,7 @@ class ZObservable {
   constructor(binding) {
     this.binding = binding;
     this.observers = [];
+    // XXX add keyPath
   }
   observe(fn) {
     this.observers.push(fn);
