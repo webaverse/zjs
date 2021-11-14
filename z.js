@@ -1,6 +1,70 @@
-class ZDoc {
+class ZEventEmitter {
   constructor() {
+    this.listeners = {};
+  }
+  on(k, fn) {
+    let ls = this.listeners[k];
+    if (!ls) {
+      ls = [];
+      this.listeners[k] = ls;
+    }
+    ls.push(fn);
+  }
+  once(k, fn) {
+    this.on(k, fn);
+    
+    const fn2 = () => {
+      this.off(k, fn);
+      this.off(k, fn2);
+    };
+    this.on(k, fn2);
+  }
+  off(k, fn) {
+    const ls = this.listeners[k];
+    if (ls) {
+      for (;;) {
+        const index = ls.indexOf(fn);
+        if (index !== -1) {
+          ls.splice(index, 1);
+        } else {
+          break;
+        }
+      }
+    }
+  }
+  dispatchEvent(k, a, b, c, d) {
+    const listeners = this.listeners[k];
+    if (listeners) {
+      for (const fn of listeners) {
+        fn(a, b, c, d);
+      }
+    }
+  }
+}
+
+class TransactionCache {
+  constructor(origin) {
+    this.origin = origin;
+    this.queue = [];
+  }
+  flush() {
+    for (const fn of this.queue) {
+      fn(origin);
+    }
+  }
+  getUpdate() {
+    const uint8Array = new Uint8Array();
+    // XXX
+    return uint8Array;
+  }
+}
+
+class ZDoc extends ZEventEmitter {
+  constructor() {
+    super();
+
     this.state = {};
+    this.transactionCache = null;
   }
   get(k, Type) {
     let binding = this.state[k];
@@ -15,6 +79,20 @@ class ZDoc {
   }
   getMap(k) {
     return this.get(k, ZMap);
+  }
+  transact(fn, origin) {
+    if (!this.transactionCache) {
+      this.transactionCache = new TransactionCache(origin);
+      fn();
+      this.transactionCache.flush();
+      const uint8Array = this.transactionCache.getUpdate();
+      if (uint8Array) {
+        this.dispatchEvent('update', uint8Array, origin, this, null);
+      }
+      this.transactionCache = null;
+    } else {
+      throw new Error('recursive transaction');
+    }
   }
 }
 
@@ -33,6 +111,7 @@ class ZObservable {
     }
   }
   triggerChange(e) {
+    // XXX queue this
     const observers = this.observers.slice();
     for (const observer of observers) {
       observer(e);
@@ -146,8 +225,8 @@ class ZArray extends ZObservable {
   get(index) {
     return this.binding[index];
   }
-  insert(index, v) {
-    this.binding.splice(index, 0, v);
+  insert(index, arr) {
+    this.binding.splice.apply(this.binding, [index, 0].concat(arr));
     triggerChange(new MessageEvent('change', {
       data: {
       },
@@ -194,8 +273,20 @@ class ZArray extends ZObservable {
   }
 }
 
+function applyUpdate(zdoc, uint8Array, transactionOrigin) {
+  // XXX
+}
+
+function encodeStateAsUpdate(doc) {
+  const uint8Array = new Uint8Array();
+  // XXX
+  return uint8Array;
+}
+
 const Z = {
   Doc: ZDoc,
   Map: ZMap,
   Array: ZArray,
+  applyUpdate,
+  encodeStateAsUpdate,
 };
