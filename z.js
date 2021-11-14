@@ -140,7 +140,7 @@ class ZArray extends ZObservable {
   get length() {
     return this.binding.length;
   }
-  get length(length) {
+  set length(length) {
     this.binding.length = length;
   }
   get(index) {
@@ -174,7 +174,7 @@ class ZArray extends ZObservable {
       },
     }));
   }
-  [Symbol.Iterator]: () => {
+  [Symbol.Iterator] = () => {
     let i = 0;
     return {
       next: () => {
@@ -191,7 +191,7 @@ class ZArray extends ZObservable {
         }
       },
     };
-  },
+  }
 }
 
 const Z = {
