@@ -80,19 +80,25 @@ class ZDoc extends ZEventEmitter {
   getMap(k) {
     return this.get(k, ZMap);
   }
-  transact(fn, origin) {
+  startTransaction(origin) {
     if (!this.transactionCache) {
       this.transactionCache = new TransactionCache(origin);
-      fn();
-      this.transactionCache.flush();
-      const uint8Array = this.transactionCache.getUpdate();
-      if (uint8Array) {
-        this.dispatchEvent('update', uint8Array, origin, this, null);
-      }
-      this.transactionCache = null;
     } else {
       throw new Error('recursive transaction');
     }
+  }
+  finishTransaction() {
+    this.transactionCache.flush();
+    const uint8Array = this.transactionCache.getUpdate();
+    if (uint8Array) {
+      this.dispatchEvent('update', uint8Array, origin, this, null);
+    }
+    this.transactionCache = null;
+  }
+  transact(fn, origin) {
+    this.startTransaction(origin);
+    fn();
+    this.finishTransaction();
   }
 }
 
