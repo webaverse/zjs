@@ -1,3 +1,97 @@
+let iota = 0;
+const MESSAGES = {
+  STATE_RESET: ++iota,
+};
+
+const textEncoder = new TextEncoder();
+function zbencode(o) {
+  let index = 0;
+  const addendums = [];
+  const addendumIndexes = [];
+  const _recurse = o => {
+    index++;
+    if (Array.isArray(o)) {
+      const childResult = Array(o.length);
+      for (let i = 0; i < o.length; i++) {
+        childResult[i] = _recurse(o[i]);
+      }
+      return childResult;
+    } else if (
+      o instanceof Uint8Array ||
+      o instanceof Uint16Array ||
+      o instanceof Uint32Array ||
+      o instanceof Int8Array ||
+      o instanceof Int16Array ||
+      o instanceof Int32Array ||
+      o instanceof Float32Array ||
+      o instanceof Float64Array
+    ) {
+      addendums.push(o);
+      addendumIndexes.push(index);
+      return null;
+    } else if (
+      o === null || o === undefined ||
+      typeof o === 'boolean' || typeof o === 'string' || typeof o === 'number'
+    ) {
+      return o;
+    } else if (typeof o === 'object') {
+      const childResult = {};
+      for (const k in o) {
+        childResult[k] = _recurse(o[k]);
+      }
+      return childResult;
+    } else {
+      console.warn('ignoring during zbencode:', o);
+      return null;
+    }
+  };
+  const j = _recurse(o);
+  const s = JSON.stringify(j);
+  const sb = textEncoder.encode(s);
+  
+  let totalSize = 0;
+  totalSize += Uint32Array.BYTES_PER_ELEMENT;
+  totalSize += sb.byteLength;
+  for (const addendum of addendums) {
+    totalSize += Uint32Array.BYTES_PER_ELEMENT;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT;
+    totalSize += a.byteLength;
+  }
+  
+  const ab = new ArrayBuffer(totalSize);
+  const uint8Array = new Uint8Array(ab);
+  const dataView = new DataView(ab);
+  {
+    let index = 0;
+    // sb
+    {
+      dataView.setUint32(index, sb.byteLength, true);
+      index += Uint32Array.BYTES_PER_ELEMENT;
+      
+      uint8Array.set(sb, index);
+      index += a.byteLength;
+    }
+    // addendums
+    for (let i = 0; i < addendums.length; i++) {
+      const addendum = addendums[i];
+      const addendumIndex = addendumIndexes[i];
+      
+      dataView.setUint32(addendumIndex, a.byteLength, true);
+      index += Uint32Array.BYTES_PER_ELEMENT;
+      
+      dataView.setUint32(index, a.byteLength, true);
+      index += Uint32Array.BYTES_PER_ELEMENT;
+      
+      uint8Array.set(new Uint8Array(a.buffer, a.byteOffset, a.byteLength), index);
+      index += a.byteLength;
+    }
+  }
+  return uint8Array;
+}
+function zbdecode(o) {
+  // XXX
+}
+
 class ZEventEmitter {
   constructor() {
     this.listeners = {};
@@ -104,6 +198,9 @@ class ZDoc extends ZEventEmitter {
 
 class ZObservable {
   constructor(binding) {
+    if (!binding) {
+      throw new Error('lol');
+    }
     this.binding = binding;
     this.observers = [];
   }
@@ -302,8 +399,20 @@ function applyUpdate(zdoc, uint8Array, transactionOrigin) {
 }
 
 function encodeStateAsUpdate(doc) {
-  const uint8Array = new Uint8Array();
-  // XXX
+  const encodedData = zbencode(doc.state);
+  
+  const totalSize = Uint32Array.BYTES_PER_ELEMENT + encodedData.byteLength;
+  const ab = new ArrayBuffer(totalSize);
+  const uint8Array = new Uint8Array(ab);
+  const dataView = new DataView(ab);
+  
+  let index = 0;
+  dataView.setUint32(index, MESSAGES.STATE_RESET, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+  
+  uint8Array.set(new Uint8Array(encodedData.buffer, encodedData.byteOffset, encodedData.byteLength), index);
+  index += encodedData.byteLength;
+  
   return uint8Array;
 }
 
@@ -313,6 +422,8 @@ export {
   ZArray as Array,
   applyUpdate,
   encodeStateAsUpdate,
+  zbencode,
+  zbdecode,
 };
 
 const Z = {
@@ -321,6 +432,8 @@ const Z = {
   Array: ZArray,
   applyUpdate,
   encodeStateAsUpdate,
+  zbencode,
+  zbdecode,
 };
 export default Z;
 window.Z = Z;
