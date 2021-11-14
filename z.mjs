@@ -135,14 +135,14 @@ class ZMap extends ZObservable {
   }
   set(k, v) {
     this.binding[k] = v;
-    triggerChange(new MessageEvent('change', {
+    this.triggerChange(new MessageEvent('change', {
       data: {
       },
     }));
   }
   delete(k) {
     delete this.binding[k];
-    triggerChange(new MessageEvent('change', {
+    this.triggerChange(new MessageEvent('change', {
       data: {
       },
     }));
@@ -241,14 +241,14 @@ class ZArray extends ZObservable {
   }
   push(arr) {
     this.binding.push.apply(this.binding, arr);
-    triggerChange(new MessageEvent('change', {
+    this.triggerChange(new MessageEvent('change', {
       data: {
       },
     }));
   }
   unshift(arr) {
     this.binding.unshift.apply(this.binding, arr);
-    triggerChange(new MessageEvent('change', {
+    this.triggerChange(new MessageEvent('change', {
       data: {
       },
     }));
@@ -290,3 +290,4 @@ const Z = {
   applyUpdate,
   encodeStateAsUpdate,
 };
+export default Z;

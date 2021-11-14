@@ -2,7 +2,7 @@
   "name": "z",
   "version": "0.0.1",
   "description": "",
-  "main": "z.js",
+  "main": "z.mjs",
   "scripts": {
     "test": "mocha"
   },
