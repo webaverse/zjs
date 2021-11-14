@@ -303,6 +303,9 @@ class ZDoc extends ZEventEmitter {
     fn();
     this.finishTransaction();
   }
+  setState(state) {
+    this.state = state; // XXX need to trigger observers
+  }
 }
 
 class ZObservable {
@@ -504,7 +507,23 @@ class ZArray extends ZObservable {
 }
 
 function applyUpdate(zdoc, uint8Array, transactionOrigin) {
-  // XXX
+  const dataView = new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
+  
+  let index = 0;
+  const method = dataView.getUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+  switch (method) {
+    case MESSAGES.STATE_RESET: {
+      const data = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength);
+      const state = zbdecode(data);
+      zdoc.setState(state);
+      break;
+    }
+    default: {
+      console.warn('unknown method:', method);
+      break;
+    }
+  }
 }
 
 function encodeStateAsUpdate(doc) {
