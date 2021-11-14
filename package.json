@@ -2,9 +2,9 @@
   "name": "z",
   "version": "0.0.1",
   "description": "",
-  "main": "index.js",
+  "main": "z.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "repository": {
     "type": "git",
@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/webaverse/z/issues"
   },
-  "homepage": "https://github.com/webaverse/z#readme"
+  "homepage": "https://github.com/webaverse/z#readme",
+  "dependencies": {
+    "mocha": "^9.1.3"
+  }
 }
