@@ -226,13 +226,19 @@ class ZArray extends ZObservable {
     return this.binding[index];
   }
   insert(index, arr) {
+    if (arr.length !== 1) {
+      throw new Error('only length 1 is supported');
+    }
     this.binding.splice.apply(this.binding, [index, 0].concat(arr));
     triggerChange(new MessageEvent('change', {
       data: {
       },
     }));
   }
-  delete(index, length) {
+  delete(index, length = 1) {
+    if (length !== 1) {
+      throw new Error('only length 1 is supported');
+    }
     this.binding.splice(index, length);
     triggerChange(new MessageEvent('change', {
       data: {
@@ -240,6 +246,9 @@ class ZArray extends ZObservable {
     }));
   }
   push(arr) {
+    if (arr.length !== 1) {
+      throw new Error('only length 1 is supported');
+    }
     this.binding.push.apply(this.binding, arr);
     this.triggerChange(new MessageEvent('change', {
       data: {
@@ -247,6 +256,9 @@ class ZArray extends ZObservable {
     }));
   }
   unshift(arr) {
+    if (arr.length !== 1) {
+      throw new Error('only length 1 is supported');
+    }
     this.binding.unshift.apply(this.binding, arr);
     this.triggerChange(new MessageEvent('change', {
       data: {
