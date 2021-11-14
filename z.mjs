@@ -30,6 +30,7 @@ const ADDENDUM_CONSTRUCTORS = [
 ];
 
 const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 function zbencode(o) {
   let recursionIndex = 0;
   const addendums = [];
