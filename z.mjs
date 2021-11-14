@@ -420,7 +420,7 @@ class ZMap extends ZObservable {
         };
       } else {
         return {
-          done: false,
+          done: true,
           value: null,
         };
       }
