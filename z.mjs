@@ -156,63 +156,69 @@ class ZMap extends ZObservable {
   keys() {
     const keys = Object.keys(this.binding);
     let i = 0;
+    const next = () => {
+      if (i < keys.length) {
+        const key = keys[i++];
+        return {
+          done: false,
+          value: key,
+        };
+      } else {
+        return {
+          done: true,
+          value: null,
+        };
+      }
+    };
     return {
-      next() {
-        if (i < keys.length) {
-          const key = keys[i++];
-          return {
-            done: false,
-            value: key,
-          };
-        } else {
-          return {
-            done: false,
-            value: null,
-          };
-        }
-      },
+      next,
+      [Symbol.iterator]: () => ({next}),
     };
   }
   values() {
     const keys = Object.keys(this.binding);
     let i = 0;
+    const next = () => {
+      if (i < keys.length) {
+        const key = keys[i++];
+        const value = this.get(key);
+        return {
+          done: false,
+          value,
+        };
+      } else {
+        return {
+          done: true,
+          value: null,
+        };
+      }
+    };
     return {
-      next() {
-        if (i < keys.length) {
-          const key = keys[i++];
-          const value = this.get(key);
-          return {
-            done: false,
-            value,
-          };
-        } else {
-          return {
-            done: false,
-            value: null,
-          };
-        }
-      },
+      next,
+      [Symbol.iterator]: () => ({next}),
     };
   }
   entries() {
     const keys = Object.keys(this.binding);
     let i = 0;
+    const next = () => {
+      if (i < keys.length) {
+        const key = keys[i++];
+        const value = this.get(key);
+        return {
+          done: false,
+          value: [key, value],
+        };
+      } else {
+        return {
+          done: false,
+          value: null,
+        };
+      }
+    };
     return {
-      next() {
-        if (i < keys.length) {
-          const key = keys[i++];
-          const value = this.get(key);
-          return {
-            done: false,
-            value: [key, value],
-          };
-        } else {
-          return {
-            done: false,
-            value: null,
-          };
-        }
-      },
+      next,
+      [Symbol.iterator]: () => ({next}),
     };
   }
 }
