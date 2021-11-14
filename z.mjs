@@ -307,6 +307,14 @@ function encodeStateAsUpdate(doc) {
   return uint8Array;
 }
 
+export {
+  ZDoc as Doc,
+  ZMap as Map,
+  ZArray as Array,
+  applyUpdate,
+  encodeStateAsUpdate,
+};
+
 const Z = {
   Doc: ZDoc,
   Map: ZMap,
