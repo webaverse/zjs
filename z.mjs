@@ -132,7 +132,7 @@ class ZMap extends ZObservable {
   constructor(binding) {
     super(binding);
   }
-  static nativeConstructor = () => {};
+  static nativeConstructor = () => ({});
   has(k) {
     return k in this.binding;
   }
