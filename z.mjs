@@ -1,15 +1,41 @@
-let iota = 0;
-const MESSAGES = {
-  STATE_RESET: ++iota,
-};
+const MESSAGES = (() => {
+  let iota = 0;
+  return {
+    STATE_RESET: ++iota,
+  };
+})();
+const ADDENDUM_TYPES = (() => {
+  let iota = 0;
+  return {
+    Uint8Array: ++iota,
+    Uint16Array: ++iota,
+    Uint32Array: ++iota,
+    Int8Array: ++iota,
+    Int16Array: ++iota,
+    Int32Array: ++iota,
+    Float32Array: ++iota,
+    Float64Array: ++iota,
+  };
+})();
+const ADDENDUM_CONSTRUCTORS = [
+  null, // start at 1
+  Uint8Array,
+  Uint16Array,
+  Uint32Array,
+  Int8Array,
+  Int16Array,
+  Int32Array,
+  Float32Array,
+  Float64Array,
+];
 
 const textEncoder = new TextEncoder();
 function zbencode(o) {
-  let index = 0;
+  let recursionIndex = 0;
   const addendums = [];
   const addendumIndexes = [];
   const _recurse = o => {
-    index++;
+    recursionIndex++;
     if (Array.isArray(o)) {
       const childResult = Array(o.length);
       for (let i = 0; i < o.length; i++) {
@@ -27,7 +53,9 @@ function zbencode(o) {
       o instanceof Float64Array
     ) {
       addendums.push(o);
-      addendumIndexes.push(index);
+      addendumIndexes.push(recursionIndex);
+      const addendumType = ADDENDUM_TYPES[o.constructor.name];
+      addendumType.push(addendumType)
       return null;
     } else if (
       o === null || o === undefined ||
@@ -50,12 +78,13 @@ function zbencode(o) {
   const sb = textEncoder.encode(s);
   
   let totalSize = 0;
-  totalSize += Uint32Array.BYTES_PER_ELEMENT;
-  totalSize += sb.byteLength;
+  totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
+  totalSize += sb.byteLength; // data
+  totalSize += Uint32Array.BYTES_PER_ELEMENT; // count
   for (const addendum of addendums) {
-    totalSize += Uint32Array.BYTES_PER_ELEMENT;
-    totalSize += Uint32Array.BYTES_PER_ELEMENT;
-    totalSize += a.byteLength;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // index
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
+    totalSize += a.byteLength; // data
   }
   
   const ab = new ArrayBuffer(totalSize);
@@ -72,11 +101,17 @@ function zbencode(o) {
       index += a.byteLength;
     }
     // addendums
+    dataView.setUint32(index, addendums.length, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
     for (let i = 0; i < addendums.length; i++) {
       const addendum = addendums[i];
       const addendumIndex = addendumIndexes[i];
+      const addendumType = addendumTypes[i];
       
-      dataView.setUint32(addendumIndex, a.byteLength, true);
+      dataView.setUint32(index, addendumIndex, true);
+      index += Uint32Array.BYTES_PER_ELEMENT;
+      
+      dataView.setUint32(index, addendumType, true);
       index += Uint32Array.BYTES_PER_ELEMENT;
       
       dataView.setUint32(index, a.byteLength, true);
@@ -88,8 +123,82 @@ function zbencode(o) {
   }
   return uint8Array;
 }
-function zbdecode(o) {
-  // XXX
+function zbdecode(uint8Array) {
+  const dataView = new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
+  
+  let index = 0;
+  const sbLength = dataView.setUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+  
+  const sb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, sbLength);
+  const s = textDecoder.decode(sbLength);
+  const j = JSON.parse(s);
+  
+  const numAddendums = dataView.setUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+  
+  const addendums = Array(numAddendums);
+  const addendumIndexes = Array(numAddendums);
+  const addendumTypes = Array(numAddendums);
+  for (let i = 0; i < numAddendums; i++) {
+    const addendumIndex = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const addendumType = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const addendumLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const TypedArrayCons = ADDENDUM_CONSTRUCTORS[addendumType];
+    if (!TypedArrayCons) {
+      console.warn('failed to find tyed array cons for', addendumType);
+    }
+    const addendum = TypedArrayCons ?
+      new TypedArrayCons(a.buffer, a.byteOffset + index, a.byteLength)
+    : null;
+    index += a.byteLength;
+    
+    addendums.push(addendum);
+    addendumIndexes.push(addendumIndex);
+    addendumTypes.push(addendumType);
+  }
+  
+  {
+    let recursionIndex = 0;
+    let currentAddendum = 0;
+    const _recurse = o => {
+      recursionIndex++;
+      
+      const addendumIndex = addendumIndexes[currentAddendum];
+      if (addendumIndex !== undefined && addendumIndex === recursionIndex) {
+        const addendum = addendums[currentAddendum];
+        currentAddendum++;
+        return addendum;
+      } else if (Array.isArray(o)) {
+        const childResult = Array(o.length);
+        for (let i = 0; i < o.length; i++) {
+          childResult[i] = _recurse(o[i]);
+        }
+        return childResult;
+      } else if (
+        o === null || o === undefined ||
+        typeof o === 'boolean' || typeof o === 'string' || typeof o === 'number'
+      ) {
+        return o;
+      } else if (typeof o === 'object') {
+        const childResult = {};
+        for (const k in o) {
+          childResult[k] = _recurse(o[k]);
+        }
+        return childResult;
+      } else {
+        console.warn('ignoring during zbencode:', o);
+        return null;
+      }
+    };
+    return _recurse(j);
+  }
 }
 
 class ZEventEmitter {
