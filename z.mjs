@@ -248,14 +248,18 @@ class ZEventEmitter {
 class TransactionCache {
   constructor(origin) {
     this.origin = origin;
-    this.queue = [];
+    this.events = [];
+  }
+  pushEvent(event) {
+    this.events.push(event);
   }
   flush() {
-    for (const fn of this.queue) {
-      fn(origin);
+    for (const event of this.events) {
+      console.log('get event', event);
+      // fn(origin);
     }
   }
-  getUpdate() {
+  serializeUpdate() {
     const uint8Array = new Uint8Array();
     // XXX
     return uint8Array;
@@ -267,6 +271,7 @@ class ZDoc extends ZEventEmitter {
     super();
 
     this.state = {};
+    this.clock = 0; // XXX send this with STATE_RESET and UPDATE-type messages
     this.transactionCache = null;
   }
   get(k, Type) {
@@ -283,25 +288,27 @@ class ZDoc extends ZEventEmitter {
   getMap(k) {
     return this.get(k, ZMap);
   }
-  startTransaction(origin) {
+  pushTransaction(origin) {
+    // XXX make this work recursively
+    // XXX make children of the doc call this on sets
     if (!this.transactionCache) {
       this.transactionCache = new TransactionCache(origin);
     } else {
       throw new Error('recursive transaction');
     }
   }
-  finishTransaction() {
+  popTransaction() {
     this.transactionCache.flush();
-    const uint8Array = this.transactionCache.getUpdate();
+    const uint8Array = this.transactionCache.serializeUpdate();
     if (uint8Array) {
       this.dispatchEvent('update', uint8Array, origin, this, null);
     }
     this.transactionCache = null;
   }
   transact(fn, origin) {
-    this.startTransaction(origin);
+    this.pushTransaction(origin);
     fn();
-    this.finishTransaction();
+    this.popTransaction();
   }
   setState(state) {
     this.state = state; // XXX need to trigger observers
@@ -310,9 +317,6 @@ class ZDoc extends ZEventEmitter {
 
 class ZObservable {
   constructor(binding) {
-    if (!binding) {
-      throw new Error('lol');
-    }
     this.binding = binding;
     this.observers = [];
   }
