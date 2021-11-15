@@ -1,7 +1,7 @@
 import assert from 'assert';
 import Z from '../z.mjs';
 
-describe('zencode', function() {
+describe('zbencode + zbdecode', function() {
   describe('basic', function() {
     it('should support basic operations', function() {
       const s = 'lol';
