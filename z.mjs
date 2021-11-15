@@ -276,9 +276,9 @@ class TransactionCache {
   pushEvent(event) {
     this.events.push(event);
   }
-  flush() {
+  triggerEvents() {
     for (const event of this.events) {
-      console.log('get event', event);
+      console.log('trigger event', event);
       // fn(origin);
     }
   }
@@ -320,7 +320,8 @@ class ZDoc extends ZEventEmitter {
   }
   popTransaction() {
     if (--this.transactionDepth === 0) {
-      this.transactionCache.flush();
+      this.clock++;
+      this.transactionCache.triggerEvents();
       const uint8Array = this.transactionCache.serializeUpdate();
       if (uint8Array) {
         this.dispatchEvent('update', uint8Array, this.transactionCache.origin, this, null);
@@ -333,7 +334,8 @@ class ZDoc extends ZEventEmitter {
     fn();
     this.popTransaction();
   }
-  setState(state) {
+  setClockState(clock, state) {
+    this.clock = clock;
     this.state = state; // XXX need to trigger observers
   }
 }
@@ -542,9 +544,12 @@ function applyUpdate(zdoc, uint8Array, transactionOrigin) {
   index += Uint32Array.BYTES_PER_ELEMENT;
   switch (method) {
     case MESSAGES.STATE_RESET: {
+      const clock = dataView.getUint32(index, true);
+      index += Uint32Array.BYTES_PER_ELEMENT;
+      
       const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength);
       const state = zbdecode(encodedData);
-      zdoc.setState(state);
+      zdoc.setClockState(clock, state);
       break;
     }
     default: {
@@ -564,6 +569,9 @@ function encodeStateAsUpdate(doc) {
   
   let index = 0;
   dataView.setUint32(index, MESSAGES.STATE_RESET, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+  
+  dataView.setUint32(index, doc.clock, true);
   index += Uint32Array.BYTES_PER_ELEMENT;
   
   uint8Array.set(new Uint8Array(encodedData.buffer, encodedData.byteOffset, encodedData.byteLength), index);
