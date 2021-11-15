@@ -1,6 +1,15 @@
 import assert from 'assert';
 import Z from '../z.mjs';
 
+describe('zencode', function() {
+  describe('basic', function() {
+    it('should support basic operations', function() {
+      const s = 'lol';
+      assert.equal(s, Z.zbdecode(Z.zbencode(s)));
+    });
+  });
+});
+
 describe('ZMap', function() {
   describe('basic', function() {
     it('should support basic operations', function() {
@@ -18,7 +27,7 @@ describe('ZMap', function() {
       assert.deepEqual(values, ['value']);
       
       const entries = Array.from(map.entries());
-      assert.deepEqual(values, ['key', 'value']);
+      assert.deepEqual(entries, [['key', 'value']]);
       
       map.set('key2', 'value2');
       assert.equal(map.get('key2'), 'value2');

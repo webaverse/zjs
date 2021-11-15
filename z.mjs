@@ -99,7 +99,7 @@ function zbencode(o) {
       index += Uint32Array.BYTES_PER_ELEMENT;
       
       uint8Array.set(sb, index);
-      index += a.byteLength;
+      index += sb.byteLength;
     }
     // addendums
     dataView.setUint32(index, addendums.length, true);
@@ -128,11 +128,12 @@ function zbdecode(uint8Array) {
   const dataView = new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
   
   let index = 0;
-  const sbLength = dataView.setUint32(index, true);
+  const sbLength = dataView.getUint32(index, true);
   index += Uint32Array.BYTES_PER_ELEMENT;
   
   const sb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, sbLength);
-  const s = textDecoder.decode(sbLength);
+  index += sbLength;
+  const s = textDecoder.decode(sb);
   const j = JSON.parse(s);
   
   const numAddendums = dataView.setUint32(index, true);
@@ -570,7 +571,7 @@ const Z = {
   zbdecode,
 };
 export default Z;
-window.Z = Z;
+globalThis.Z = Z;
 
 import * as Y from 'yjs';
-window.Y = Y;
+globalThis.Y = Y;
