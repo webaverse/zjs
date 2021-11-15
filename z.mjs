@@ -89,7 +89,7 @@ class TransactionCache {
   pushEvent(event) {
     this.events.push(event);
   }
-  triggerEvents() {
+  triggerObservers() {
     for (const event of this.events) {
       event.triggerObservers();
     }
@@ -382,7 +382,7 @@ class ZDoc extends ZEventEmitter {
   popTransaction() {
     if (--this.transactionDepth === 0) {
       this.clock++;
-      this.transactionCache.triggerEvents();
+      this.transactionCache.triggerObservers();
       const uint8Array = this.transactionCache.serializeUpdate();
       if (uint8Array) {
         this.dispatchEvent('update', uint8Array, this.transactionCache.origin, this, null);
