@@ -703,7 +703,7 @@ class ZDoc extends ZEventEmitter {
 
     this.state = {};
     this.clock = 0;
-    this.history = []; // XXX track this
+    this.history = [];
     this.transactionDepth = 0;
     this.transactionCache = null;
   }
@@ -739,6 +739,7 @@ class ZDoc extends ZEventEmitter {
       if (uint8Array) {
         this.dispatchEvent('update', uint8Array, this.transactionCache.origin, this, null);
       }
+      this.history.push(this.transactionCache);
       this.transactionCache = null;
     }
   }
@@ -750,6 +751,7 @@ class ZDoc extends ZEventEmitter {
   setClockState(clock, state) {
     this.clock = clock;
     this.state = state; // XXX need to trigger observers from the old state
+    this.history = [];
   }
   getImplFromKeyPath(keyPath) {
     return null; // XXX return the correct impl by walking the key path downwards
