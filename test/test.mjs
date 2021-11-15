@@ -6,6 +6,11 @@ describe('zencode', function() {
     it('should support basic operations', function() {
       const s = 'lol';
       assert.equal(s, Z.zbdecode(Z.zbencode(s)));
+    
+      const o = {
+        s,
+      };
+      assert.equal(o, Z.zbdecode(Z.zbencode(o)));
     });
   });
 });
