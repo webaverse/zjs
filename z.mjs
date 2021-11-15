@@ -40,6 +40,7 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 const observersMap = new WeakMap();
 const bindingsMap = new WeakMap();
+const bindingParentsMap = new WeakMap();
 
 class ZEventEmitter {
   constructor() {
@@ -717,6 +718,7 @@ class ZDoc extends ZEventEmitter {
     if (!impl) {
       impl = new Type(binding, this);
       bindingsMap.set(binding, impl);
+      bindingParentsMap.set(binding, this);
     }
     return impl;
   }
@@ -754,6 +756,7 @@ class ZDoc extends ZEventEmitter {
     this.history = [];
   }
   getImplFromKeyPath(keyPath) {
+    console.log('get impl from key path', keyPath);
     return null; // XXX return the correct impl by walking the key path downwards
   }
 }
@@ -781,14 +784,16 @@ class ZObservable {
     }
   }
   getKeyPath() {
-    return []; // XXX return the correct key path by walking the binding upwards
+    const keyPath = [];
+    console.log('get key path', keyPath);
+    return keyPath; // XXX return the correct key path by walking the binding upwards
   }
   toJSON() {
     return this.binding;
   }
 }
 
-const _ensureImplBound = v => {
+const _ensureImplBound = (v, parent) => {
   if (
     v instanceof ZMap ||
     v instanceof ZArray
@@ -796,6 +801,7 @@ const _ensureImplBound = v => {
     const impl = bindingsMap.get(v.binding);
     if (!impl) {
       bindingsMap.set(v.binding, v);
+      bindingParentsMap.set(v.binding, parent);
     }
   }
 };
@@ -811,7 +817,7 @@ class ZMap extends ZObservable {
     return this.binding[k];
   }
   set(k, v) {
-    _ensureImplBound(v);
+    _ensureImplBound(v, this);
     
     const keyPath = this.getKeyPath();
     keyPath.push(k + ':k');
@@ -937,7 +943,7 @@ class ZArray extends ZObservable {
       throw new Error('only length 1 is supported');
     }
     
-    arr.forEach(_ensureImplBound);
+    arr.forEach(e => _ensureImplBound(e, this));
     
     const keyPath = this.getKeyPath();
     keyPath.push(keyPath.length + ':i');
@@ -981,7 +987,7 @@ class ZArray extends ZObservable {
       throw new Error('only length 1 is supported');
     }
     
-    arr.forEach(_ensureImplBound);
+    arr.forEach(e => _ensureImplBound(e, this));
     
     const keyPath = this.getKeyPath();
     keyPath.push(keyPath.length + ':i');
@@ -1004,7 +1010,7 @@ class ZArray extends ZObservable {
       throw new Error('only length 1 is supported');
     }
     
-    arr.forEach(_ensureImplBound);
+    arr.forEach(e => _ensureImplBound(e, this));
     
     const keyPath = this.getKeyPath();
     keyPath.push(keyPath.length + ':i');
