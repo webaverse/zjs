@@ -112,22 +112,73 @@ class TransactionCache {
 }
 
 const observersMap = new WeakMap();
-class ZPushEvent {
-  constructor(zArray, keyPath, arr) {
-    this.zArray = zArray;
-    this.keyPath = keyPath;
-    this.arr = arr;
+class ZEvent {
+  constructor(impl) {
+    this.impl = impl;
   }
   triggerObservers() {
-    const observers = observersMap.get(this.zArray);
+    const observers = observersMap.get(this.impl);
     if (observers) {
       for (const fn of observers) {
         fn(this);
       }
     }
   }
+}
+class ZArrayEvent extends ZEvent {
+  constructor(impl) {
+    super(impl);
+  }
+}
+class ZMapEvent extends ZEvent {
+  constructor(impl) {
+    super(impl);
+  }
+}
+class ZInsertEvent extends ZArrayEvent {
+  constructor(impl, keyPath, index, arr) {
+    super(impl);
+
+    this.keyPath = keyPath;
+    this.index = index;
+    this.arr = arr;
+  }
   apply() {
-    this.zArray.binding.push.apply(this.zArray.binding, this.arr);
+    this.impl.binding.splice.apply(this.impl.binding, [this.index, 0].concat(this.arr));
+  }
+}
+class ZDeleteEvent extends ZArrayEvent {
+  constructor(impl, keyPath, index, length) {
+    super(impl);
+
+    this.keyPath = keyPath;
+    this.index = index;
+    this.length = length;
+  }
+  apply() {
+    this.impl.binding.splice.apply(this.impl.binding, [this.index, this.length]);
+  }
+}
+class ZPushEvent extends ZArrayEvent {
+  constructor(impl, keyPath, arr) {
+    super(impl);
+
+    this.keyPath = keyPath;
+    this.arr = arr;
+  }
+  apply() {
+    this.impl.binding.push.apply(this.impl.binding, this.arr);
+  }
+}
+class ZUnshiftEvent extends ZArrayEvent {
+  constructor(impl, keyPath, arr) {
+    super(impl);
+
+    this.keyPath = keyPath;
+    this.arr = arr;
+  }
+  apply() {
+    this.impl.binding.unshift.apply(this.impl.binding, this.arr);
   }
 }
 
@@ -329,21 +380,41 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
-    this.binding.splice.apply(this.binding, [index, 0].concat(arr));
-    /* this.triggerChange(new MessageEvent('change', {
-      data: {
-      },
-    })); */
+    const event = new ZInsertEvent(
+      this,
+      this.keyPath.slice()
+        .concat([this.keyPath.length + ':i']),
+      index,
+      arr
+    );
+    if (this.doc) {
+      this.doc.pushTransaction('push');
+      this.doc.transactionCache.pushEvent(event);
+    }
+    event.apply();
+    if (this.doc) {
+      this.doc.popTransaction();
+    }
   }
   delete(index, length = 1) {
     if (length !== 1) {
       throw new Error('only length 1 is supported');
     }
-    this.binding.splice(index, length);
-    /* this.triggerChange(new MessageEvent('change', {
-      data: {
-      },
-    })); */
+    const event = new ZDeleteEvent(
+      this,
+      this.keyPath.slice()
+        .concat([this.keyPath.length + ':i']),
+      index,
+      length
+    );
+    if (this.doc) {
+      this.doc.pushTransaction('push');
+      this.doc.transactionCache.pushEvent(event);
+    }
+    event.apply();
+    if (this.doc) {
+      this.doc.popTransaction();
+    }
   }
   push(arr) {
     if (arr.length !== 1) {
@@ -352,7 +423,7 @@ class ZArray extends ZObservable {
     const event = new ZPushEvent(
       this,
       this.keyPath.slice()
-        .concat([this.keyPath.length + '']),
+        .concat([this.keyPath.length + ':i']),
       arr
     );
     if (this.doc) {
@@ -368,11 +439,20 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
-    this.binding.unshift.apply(this.binding, arr);
-    /* this.triggerChange(new MessageEvent('change', {
-      data: {
-      },
-    })); */
+    const event = new ZUnshiftEvent(
+      this,
+      this.keyPath.slice()
+        .concat([this.keyPath.length + ':i']),
+      arr
+    );
+    if (this.doc) {
+      this.doc.pushTransaction('push');
+      this.doc.transactionCache.pushEvent(event);
+    }
+    event.apply();
+    if (this.doc) {
+      this.doc.popTransaction();
+    }
   }
   [Symbol.Iterator] = () => {
     let i = 0;
