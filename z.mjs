@@ -18,7 +18,7 @@ const EVENTS = (() => {
   };
 })();
 
-const _parseKey = s => {
+/* const _parseKey = s => {
   const match = s.match(/^([\s\S]*?)(?::[\s\S])?$/);
   const key = match[1] ?? '';
   const type = match[2] ?? '';
@@ -26,7 +26,15 @@ const _parseKey = s => {
     key,
     type,
   };
+}; */
+const _parseEvent = encodedEventData => {
+  // XXX
+  return {
+    apply() {
+    },
+  };
 };
+
 const observersMap = new WeakMap();
 const bindingsMap = new WeakMap(); // XXX populate this
 
@@ -109,10 +117,8 @@ class TransactionCache {
     index += Uint32Array.BYTES_PER_ELEMENT;
     dataView.setUint32(index, this.events.length, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    // console.log('serialize events 1', this.events);
     for (let i = 0; i < this.events.length; i++) {
       const event = this.events[i];
-      // console.log('serialize events 2', event);
       const updateByteLength = updateByteLengths[i];
       
       dataView.setUint32(index, updateByteLength, true);
@@ -563,8 +569,8 @@ function applyUpdate(zdoc, uint8Array, transactionOrigin) {
       index += Uint32Array.BYTES_PER_ELEMENT;
       
       const encodedEventData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, eventLength);
-      // XXX parse and apply the event here
-      // XXX handle conflicts
+      const event = _parseEvent(encodedEventData);
+      event.apply(); // XXX handle conflicts
       index += eventLength;
       index = align4(index);
     }
