@@ -79,6 +79,27 @@ describe('ZArray', function() {
       assert.equal(array.get(1), 2);
       assert.equal(array.get(2), undefined);
       assert.deepEqual(array.toJSON(), [1, 2]);
+      
+      array.delete(0);
+      assert.equal(array.length, 1);
+      assert.equal(array.get(0), 2);
+      assert.equal(array.get(1), undefined);
+      assert.deepEqual(array.toJSON(), [2]);
+    });
+  });
+});
+
+describe('transactions', function() {
+  describe('basic', function() {
+    it('should support basic operations', function() {
+      const doc1 = new Z.Doc();
+      const array1 = doc1.getArray('array');
+      
+      const doc2 = new Z.Doc();
+      const array2 = doc2.getArray('array');
+      
+      doc1.transact(() => {
+      });
     });
   });
 });

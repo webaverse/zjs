@@ -295,6 +295,7 @@ class ZDoc extends ZEventEmitter {
 
     this.state = {};
     this.clock = 0; // XXX send this with STATE_RESET and UPDATE-type messages
+    this.transactionDepth = 0;
     this.transactionCache = null;
   }
   get(k, Type) {
@@ -312,21 +313,20 @@ class ZDoc extends ZEventEmitter {
     return this.get(k, ZMap);
   }
   pushTransaction(origin) {
-    // XXX make this work recursively
-    // XXX make children of the doc call this on sets
-    if (!this.transactionCache) {
+    if (++this.transactionDepth === 1) {
+      // XXX make children of the doc call this on sets
       this.transactionCache = new TransactionCache(origin);
-    } else {
-      throw new Error('recursive transaction');
     }
   }
   popTransaction() {
-    this.transactionCache.flush();
-    const uint8Array = this.transactionCache.serializeUpdate();
-    if (uint8Array) {
-      this.dispatchEvent('update', uint8Array, origin, this, null);
+    if (--this.transactionDepth === 0) {
+      this.transactionCache.flush();
+      const uint8Array = this.transactionCache.serializeUpdate();
+      if (uint8Array) {
+        this.dispatchEvent('update', uint8Array, this.transactionCache.origin, this, null);
+      }
+      this.transactionCache = null;
     }
-    this.transactionCache = null;
   }
   transact(fn, origin) {
     this.pushTransaction(origin);
@@ -479,7 +479,7 @@ class ZArray extends ZObservable {
       throw new Error('only length 1 is supported');
     }
     this.binding.splice.apply(this.binding, [index, 0].concat(arr));
-    triggerChange(new MessageEvent('change', {
+    this.triggerChange(new MessageEvent('change', {
       data: {
       },
     }));
@@ -489,7 +489,7 @@ class ZArray extends ZObservable {
       throw new Error('only length 1 is supported');
     }
     this.binding.splice(index, length);
-    triggerChange(new MessageEvent('change', {
+    this.triggerChange(new MessageEvent('change', {
       data: {
       },
     }));
