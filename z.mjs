@@ -786,6 +786,17 @@ class ZObservable {
   }
 }
 
+const _ensureImplBound = v => {
+  if (
+    v instanceof ZMap ||
+    v instanceof ZArray
+  ) {
+    const impl = bindingsMap.get(v.binding);
+    if (!impl) {
+      bindingsMap.set(v.binding, v);
+    }
+  }
+};
 class ZMap extends ZObservable {
   constructor(binding = ZMap.nativeConstructor(), doc = null) {
     super(binding, doc);
@@ -798,6 +809,8 @@ class ZMap extends ZObservable {
     return this.binding[k];
   }
   set(k, v) {
+    _ensureImplBound(v);
+    
     const keyPath = this.getKeyPath();
     keyPath.push(k + ':k');
     const event = new ZMapSetEvent(
@@ -921,6 +934,9 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
+    
+    arr.forEach(_ensureImplBound);
+    
     const keyPath = this.getKeyPath();
     keyPath.push(keyPath.length + ':i');
     const event = new ZArrayInsertEvent(
@@ -962,6 +978,9 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
+    
+    arr.forEach(_ensureImplBound);
+    
     const keyPath = this.getKeyPath();
     keyPath.push(keyPath.length + ':i');
     const event = new ZArrayPushEvent(
@@ -982,6 +1001,9 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
+    
+    arr.forEach(_ensureImplBound);
+    
     const keyPath = this.getKeyPath();
     keyPath.push(keyPath.length + ':i');
     const event = new ZArrayUnshiftEvent(
