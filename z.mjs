@@ -2,6 +2,7 @@ import {
   zbencode,
   zbdecode,
 } from './encoding.mjs';
+import {align4} from './util.mjs';
 
 const MESSAGES = (() => {
   let iota = 0;
@@ -415,9 +416,15 @@ function applyUpdate(zdoc, uint8Array, transactionOrigin) {
       const numEvents = dataView.getUint32(index, true);
       index += Uint32Array.BYTES_PER_ELEMENT;
       
-      /* const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength);
-      const state = zbdecode(encodedData);
-      zdoc.setClockState(clock, state); */
+      for (let i = 0; i < numEvents; i++) {
+        const eventLength = dataView.getUint32(index, true);
+        index += Uint32Array.BYTES_PER_ELEMENT;
+        
+        const encodedEventData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, eventLength);
+        // XXX parse the event here
+        index += eventLength;
+        index = align4(index);
+      }
       break;
     }
     default: {

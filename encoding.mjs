@@ -1,3 +1,5 @@
+import {align4} from './util.mjs';
+
 const ADDENDUM_TYPES = (() => {
   let iota = 0;
   return {
@@ -22,11 +24,6 @@ const ADDENDUM_CONSTRUCTORS = [
   Float32Array,
   Float64Array,
 ];
-const _alignN = n => index => {
-  const r = index % n;
-  return r === 0 ? index : (index + n - r);
-};
-const _align4 = _alignN(4);
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -81,14 +78,14 @@ function zbencode(o) {
   let totalSize = 0;
   totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
   totalSize += sb.byteLength; // data
-  totalSize = _align4(totalSize);
+  totalSize = align4(totalSize);
   totalSize += Uint32Array.BYTES_PER_ELEMENT; // count
   for (const addendum of addendums) {
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // index
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // type
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
     totalSize += addendum.byteLength; // data
-    totalSize = _align4(totalSize);
+    totalSize = align4(totalSize);
   }
   
   const ab = new ArrayBuffer(totalSize);
@@ -103,7 +100,7 @@ function zbencode(o) {
       
       uint8Array.set(sb, index);
       index += sb.byteLength;
-      index = _align4(index);
+      index = align4(index);
     }
     // addendums
     dataView.setUint32(index, addendums.length, true);
@@ -124,7 +121,7 @@ function zbencode(o) {
       
       uint8Array.set(new Uint8Array(addendum.buffer, addendum.byteOffset, addendum.byteLength), index);
       index += addendum.byteLength;
-      index = _align4(index);
+      index = align4(index);
     }
   }
   return uint8Array;
@@ -138,7 +135,7 @@ function zbdecode(uint8Array) {
   
   const sb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, sbLength);
   index += sbLength;
-  index = _align4(index);
+  index = align4(index);
   const s = textDecoder.decode(sb);
   const j = JSON.parse(s);
   
@@ -170,7 +167,7 @@ function zbdecode(uint8Array) {
       )
     : null;
     index += addendumLength;
-    index = _align4(index);
+    index = align4(index);
     
     addendums[i] = addendum;
     addendumIndexes[i] = addendumIndex;
