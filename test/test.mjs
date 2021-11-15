@@ -105,6 +105,8 @@ describe('transactions', function() {
       doc1.transact(() => {
         array1.push(['lol']);
       });
+      assert.deepEqual(array1.toJSON(), ['lol']);
+      assert.deepEqual(array2.toJSON(), ['lol']);
     });
   });
 });

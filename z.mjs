@@ -21,14 +21,18 @@ const MESSAGES = (() => {
     type,
   };
 }; */
-const _parseEvent = encodedEventData => {
-  // XXX
-  return {
-    apply() {
-    },
-  };
+const _makeDataView = uint8Array => new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
+const _parseBoundEvent = (doc, encodedEventData) => {
+  const dataView = _makeDataView(encodedEventData);
+  
+  let index = 0;
+  const method = dataView.getUint32(index, true);
+  const Cons = ZEVENT_CONSTRUCTORS[method];
+  return Cons.deserializeUpdate(doc, encodedEventData);
 };
 
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 const observersMap = new WeakMap();
 const bindingsMap = new WeakMap(); // XXX populate this
 
@@ -102,8 +106,9 @@ class TransactionCache {
       return updateByteLength;
     });
     
-    const uint8Array = new Uint8Array(totalSize);
-    const dataView = new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
+    const ab = new ArrayBuffer(totalSize);
+    const uint8Array = new Uint8Array(ab);
+    const dataView = new DataView(ab);
     let index = 0;
     dataView.setUint32(index, MESSAGES.TRANSACTION, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
@@ -127,8 +132,11 @@ class TransactionCache {
 
 let zEventsIota = 0;
 class ZEvent {
-  constructor(impl) {
+  constructor(impl, keyPath) {
     this.impl = impl;
+    this.keyPath = keyPath;
+    
+    this.keyPathBuffer = null;
   }
   triggerObservers() {
     const observers = observersMap.get(this.impl);
@@ -138,34 +146,136 @@ class ZEvent {
       }
     }
   }
+  getKeyPathBuffer() {
+    if (this.keyPathBuffer === null) {
+      this.keyPathBuffer = textEncoder.encode(JSON.stringify(this.keyPathJson));
+    }
+    return this.keyPathBuffer;
+  }
   computeUpdateByteLength() {
-    return 4; // XXX return the correct length in subclases
+    throw new Error('not implemented');
   }
   serializeUpdate(uint8Array) {
-    // XXX serialize the correct data in subclases
+    throw new Error('not implemented');
+  }
+  deserializeUpdate(doc, encodedEventData) {
+    throw new Error('not implemented');
   }
 }
 class ZMapEvent extends ZEvent {
-  constructor(impl) {
-    super(impl);
+  constructor(impl, keyPath) {
+    super(impl, keyPath);
   }
 }
 class ZArrayEvent extends ZEvent {
-  constructor(impl) {
-    super(impl);
+  constructor(impl, keyPath) {
+    super(impl, keyPath);
   }
 }
 class ZMapSetEvent extends ZMapEvent {
   constructor(impl, keyPath, key, value) {
-    super(impl);
+    super(impl, keyPath);
     
-    this.keyPath = keyPath;
     this.key = key;
     this.value = value;
+
+    this.keyBuffer = null;
+    this.valueBuffer = null;
   }
   static METHOD = ++zEventsIota;
   apply() {
     this.impl.binding[this.key] = this.value;
+  }
+  getKeyBuffer() {
+    if (this.keyBuffer === null) {
+      this.keyBuffer = textEncoder.encode(this.key);
+    }
+  }
+  getValueBuffer() {
+    if (this.valueBuffer === null) {
+      this.valueBuffer = zbencode(this.value);
+    }
+  }
+  computeUpdateByteLength() {
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
+    totalSize += this.getValueBuffer().byteLength; // key data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // value length
+    totalSize += this.getValueBuffer().byteLength; // value data
+    totalSize = align4(totalSize);
+    
+    return totalSize;
+  }
+  serializeUpdate(uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    dataView.setUint32(index, this.constructor.METHOD, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = this.getKeyPathBuffer();
+    dataView.setUint32(index, kpjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(kpjb, index);
+    index += kpjb.byteLength;
+    index = align4(index);
+    
+    const kb = this.getKeyBuffer();
+    dataView.setUint32(index, kb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(vb, index);
+    index += vb.byteLength;
+    index = align4(index);
+    
+    const vb = this.getValueBuffer();
+    dataView.setUint32(index, vb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(vb, index);
+    index += vb.byteLength;
+    index = align4(index);
+  }
+  static deserializeUpdate(doc, encodedEventData) {
+    let index = 0;
+    // skip method
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
+    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    index += kpjbLength;
+    index = align4(index);
+
+    const kbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const kb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kbLength);
+    const key = textDecoder.decode(kb);
+    index += vbLength;
+    index = align4(index);
+
+    const vbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const vb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, vbLength);
+    const value = zbdecode(vb);
+    index += vbLength;
+    index = align4(index);
+    
+    const impl = doc.getImplFromKeyPath(keyPath);
+    
+    return new this(
+      impl,
+      keyPath,
+      key,
+      value
+    );
   }
 }
 class ZMapDeleteEvent extends ZMapEvent {
@@ -246,6 +356,7 @@ class ZDoc extends ZEventEmitter {
 
     this.state = {};
     this.clock = 0;
+    this.history = []; // XXX track this
     this.transactionDepth = 0;
     this.transactionCache = null;
   }
@@ -287,6 +398,9 @@ class ZDoc extends ZEventEmitter {
   setClockState(clock, state) {
     this.clock = clock;
     this.state = state; // XXX need to trigger observers from the old state
+  }
+  getImplFromKeyPath(keyPath) {
+    return null; // XXX return the correct impl by walking the key path downwards
   }
 }
 
@@ -552,8 +666,8 @@ class ZArray extends ZObservable {
   }
 }
 
-function applyUpdate(zdoc, uint8Array, transactionOrigin) {
-  const dataView = new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
+function applyUpdate(doc, uint8Array, transactionOrigin) {
+  const dataView = _makeDataView(uint8Array);
   
   let index = 0;
   const method = dataView.getUint32(index, true);
@@ -565,7 +679,7 @@ function applyUpdate(zdoc, uint8Array, transactionOrigin) {
     
     const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength);
     const state = zbdecode(encodedData);
-    zdoc.setClockState(clock, state);
+    doc.setClockState(clock, state);
   };
   const _handleTransactionMessage = () => {
     const clock = dataView.getUint32(index, true);
@@ -579,7 +693,7 @@ function applyUpdate(zdoc, uint8Array, transactionOrigin) {
       index += Uint32Array.BYTES_PER_ELEMENT;
       
       const encodedEventData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, eventLength);
-      const event = _parseEvent(encodedEventData);
+      const event = _parseBoundEvent(doc, encodedEventData);
       event.apply(); // XXX handle conflicts
       index += eventLength;
       index = align4(index);
