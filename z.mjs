@@ -324,7 +324,7 @@ class ZMap extends ZObservable {
       v
     );
     if (this.doc) {
-      this.doc.pushTransaction('mapSet');
+      this.doc.pushTransaction('mapSet'); // XXX make these symbols and have one for update
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
