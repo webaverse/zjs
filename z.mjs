@@ -111,6 +111,16 @@ class TransactionCache {
   }
 }
 
+const _parseKey = s => {
+  const match = s.match(/^([\s\S]*?)(?::[\s\S])?$/);
+  const key = match[1] ?? '';
+  const type = match[2] ?? '';
+  return {
+    key,
+    type,
+  };
+};
+
 const observersMap = new WeakMap();
 class ZEvent {
   constructor(impl) {
@@ -125,14 +135,37 @@ class ZEvent {
     }
   }
 }
+class ZMapEvent extends ZEvent {
+  constructor(impl) {
+    super(impl);
+  }
+}
 class ZArrayEvent extends ZEvent {
   constructor(impl) {
     super(impl);
   }
 }
-class ZMapEvent extends ZEvent {
-  constructor(impl) {
+class ZMapSetEvent extends ZMapEvent {
+  constructor(impl, keyPath, key, value) {
     super(impl);
+    
+    this.keyPath = keyPath;
+    this.key = key;
+    this.value = value;
+  }
+  apply() {
+    this.impl.binding[this.key] = this.value;
+  }
+}
+class ZMapDeleteEvent extends ZMapEvent {
+  constructor(impl, keyPath, key) {
+    super(impl);
+
+    this.keyPath = keyPath;
+    this.key = key;
+  }
+  apply() {
+    delete this.impl.binding[this.key];
   }
 }
 class ZInsertEvent extends ZArrayEvent {
@@ -255,13 +288,6 @@ class ZObservable {
       }
     }
   }
-  /* triggerChange(e) {
-    // XXX queue this
-    const observers = this.observers.slice();
-    for (const observer of observers) {
-      observer(e);
-    }
-  } */
   toJSON() {
     return this.binding;
   }
@@ -279,18 +305,38 @@ class ZMap extends ZObservable {
     return this.binding[k];
   }
   set(k, v) {
-    this.binding[k] = v;
-    /* this.triggerChange(new MessageEvent('change', {
-      data: {
-      },
-    })); */
+    const event = new ZMapSetEvent(
+      this,
+      this.keyPath.slice()
+        .concat([this.keyPath.length + ':k']),
+      k,
+      v
+    );
+    if (this.doc) {
+      this.doc.pushTransaction('mapSet');
+      this.doc.transactionCache.pushEvent(event);
+    }
+    event.apply();
+    if (this.doc) {
+      this.doc.popTransaction();
+    }
   }
   delete(k) {
     delete this.binding[k];
-    /* this.triggerChange(new MessageEvent('change', {
-      data: {
-      },
-    })); */
+    const event = new ZMapDeleteEvent(
+      this,
+      this.keyPath.slice()
+        .concat([this.keyPath.length + ':k']),
+      k
+    );
+    if (this.doc) {
+      this.doc.pushTransaction('mapDelete');
+      this.doc.transactionCache.pushEvent(event);
+    }
+    event.apply();
+    if (this.doc) {
+      this.doc.popTransaction();
+    }
   }
   keys() {
     const keys = Object.keys(this.binding);
