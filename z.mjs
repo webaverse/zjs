@@ -39,7 +39,7 @@ const _parseBoundEvent = (doc, encodedEventData) => {
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 const observersMap = new WeakMap();
-const bindingsMap = new WeakMap(); // XXX populate this
+const bindingsMap = new WeakMap();
 
 class ZEventEmitter {
   constructor() {
@@ -713,7 +713,12 @@ class ZDoc extends ZEventEmitter {
       binding = Type.nativeConstructor();
       this.state[k] = binding;
     }
-    return new Type(binding, this);
+    let impl = bindingsMap.get(binding);
+    if (!impl) {
+      impl = new Type(binding, this);
+      bindingsMap.set(binding, impl);
+    }
+    return impl;
   }
   getArray(k) {
     return this.get(k, ZArray);
