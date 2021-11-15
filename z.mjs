@@ -296,6 +296,69 @@ class ZMapDeleteEvent extends ZMapEvent {
   apply() {
     delete this.impl.binding[this.key];
   }
+  computeUpdateByteLength() {
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
+    totalSize += this.getValueBuffer().byteLength; // key data
+    totalSize = align4(totalSize);
+    
+    return totalSize;
+  }
+  serializeUpdate(uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    dataView.setUint32(index, this.constructor.METHOD, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = this.getKeyPathBuffer();
+    dataView.setUint32(index, kpjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(kpjb, index);
+    index += kpjb.byteLength;
+    index = align4(index);
+    
+    const kb = this.getKeyBuffer();
+    dataView.setUint32(index, kb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(vb, index);
+    index += vb.byteLength;
+    index = align4(index);
+  }
+  static deserializeUpdate(doc, encodedEventData) {
+    let index = 0;
+    // skip method
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
+    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    index += kpjbLength;
+    index = align4(index);
+
+    const kbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const kb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kbLength);
+    const key = textDecoder.decode(kb);
+    index += vbLength;
+    index = align4(index);
+    
+    const impl = doc.getImplFromKeyPath(keyPath);
+    
+    return new this(
+      impl,
+      keyPath,
+      key,
+      value
+    );
+  }
 }
 class ZArrayInsertEvent extends ZArrayEvent {
   constructor(impl, keyPath, index, arr) {
