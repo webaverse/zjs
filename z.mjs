@@ -126,6 +126,9 @@ class ZPushEvent {
       }
     }
   }
+  apply() {
+    this.zArray.binding.push.apply(this.zArray.binding, this.arr);
+  }
 }
 
 class ZDoc extends ZEventEmitter {
@@ -201,13 +204,13 @@ class ZObservable {
       }
     }
   }
-  triggerChange(e) {
+  /* triggerChange(e) {
     // XXX queue this
     const observers = this.observers.slice();
     for (const observer of observers) {
       observer(e);
     }
-  }
+  } */
   toJSON() {
     return this.binding;
   }
@@ -226,17 +229,17 @@ class ZMap extends ZObservable {
   }
   set(k, v) {
     this.binding[k] = v;
-    this.triggerChange(new MessageEvent('change', {
+    /* this.triggerChange(new MessageEvent('change', {
       data: {
       },
-    }));
+    })); */
   }
   delete(k) {
     delete this.binding[k];
-    this.triggerChange(new MessageEvent('change', {
+    /* this.triggerChange(new MessageEvent('change', {
       data: {
       },
-    }));
+    })); */
   }
   keys() {
     const keys = Object.keys(this.binding);
@@ -327,36 +330,36 @@ class ZArray extends ZObservable {
       throw new Error('only length 1 is supported');
     }
     this.binding.splice.apply(this.binding, [index, 0].concat(arr));
-    this.triggerChange(new MessageEvent('change', {
+    /* this.triggerChange(new MessageEvent('change', {
       data: {
       },
-    }));
+    })); */
   }
   delete(index, length = 1) {
     if (length !== 1) {
       throw new Error('only length 1 is supported');
     }
     this.binding.splice(index, length);
-    this.triggerChange(new MessageEvent('change', {
+    /* this.triggerChange(new MessageEvent('change', {
       data: {
       },
-    }));
+    })); */
   }
   push(arr) {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
+    const event = new ZPushEvent(
+      this,
+      this.keyPath.slice()
+        .concat([this.keyPath.length + '']),
+      arr
+    );
     if (this.doc) {
       this.doc.pushTransaction('push');
-      const event = new ZPushEvent(
-        this,
-        this.keypath.slice()
-          .concat([this.keypath.length + '']),
-        arr
-      );
       this.doc.transactionCache.pushEvent(event);
     }
-    this.binding.push.apply(this.binding, arr);
+    event.apply();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -366,10 +369,10 @@ class ZArray extends ZObservable {
       throw new Error('only length 1 is supported');
     }
     this.binding.unshift.apply(this.binding, arr);
-    this.triggerChange(new MessageEvent('change', {
+    /* this.triggerChange(new MessageEvent('change', {
       data: {
       },
-    }));
+    })); */
   }
   [Symbol.Iterator] = () => {
     let i = 0;
