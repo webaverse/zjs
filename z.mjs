@@ -1058,6 +1058,8 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
     doc.setClockState(clock, state);
   };
   const _handleTransactionMessage = () => {
+    // XXX parse as a TransactionCache
+    
     const clock = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
@@ -1073,6 +1075,8 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
       index += eventLength;
       index = align4(index);
     }
+    
+    // XXX push the parsed TransactionCache to this.history in the right slot
   };
   switch (method) {
     case MESSAGES.STATE_RESET: {
