@@ -563,7 +563,8 @@ function applyUpdate(zdoc, uint8Array, transactionOrigin) {
         index += Uint32Array.BYTES_PER_ELEMENT;
         
         const encodedEventData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, eventLength);
-        // XXX parse the event here
+        // XXX parse and apply the event here
+        // XXX handle conflicts
         index += eventLength;
         index = align4(index);
       }
