@@ -590,7 +590,7 @@ class ZArrayPushEvent extends ZArrayEvent {
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    console.log('decode key path', kpjbLength, JSON.stringify(textDecoder.decode(kpjb)));
+
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
     index = align4(index);
