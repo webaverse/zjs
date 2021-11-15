@@ -18,6 +18,18 @@ const EVENTS = (() => {
   };
 })();
 
+const _parseKey = s => {
+  const match = s.match(/^([\s\S]*?)(?::[\s\S])?$/);
+  const key = match[1] ?? '';
+  const type = match[2] ?? '';
+  return {
+    key,
+    type,
+  };
+};
+const observersMap = new WeakMap();
+const bindingsMap = new WeakMap(); // XXX populate this
+
 class ZEventEmitter {
   constructor() {
     this.listeners = {};
@@ -113,17 +125,6 @@ class TransactionCache {
   }
 }
 
-const _parseKey = s => {
-  const match = s.match(/^([\s\S]*?)(?::[\s\S])?$/);
-  const key = match[1] ?? '';
-  const type = match[2] ?? '';
-  return {
-    key,
-    type,
-  };
-};
-
-const observersMap = new WeakMap();
 class ZEvent {
   constructor(impl) {
     this.impl = impl;
