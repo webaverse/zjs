@@ -11,12 +11,6 @@ const MESSAGES = (() => {
     TRANSACTION: ++iota,
   };
 })();
-const EVENTS = (() => {
-  let iota = 0;
-  return {
-    ARRAY_PUSH: ++iota,
-  };
-})();
 
 /* const _parseKey = s => {
   const match = s.match(/^([\s\S]*?)(?::[\s\S])?$/);
@@ -131,6 +125,7 @@ class TransactionCache {
   }
 }
 
+let zEventsIota = 0;
 class ZEvent {
   constructor(impl) {
     this.impl = impl;
@@ -168,6 +163,7 @@ class ZMapSetEvent extends ZMapEvent {
     this.key = key;
     this.value = value;
   }
+  static METHOD = ++zEventsIota;
   apply() {
     this.impl.binding[this.key] = this.value;
   }
@@ -179,6 +175,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     this.keyPath = keyPath;
     this.key = key;
   }
+  static METHOD = ++zEventsIota;
   apply() {
     delete this.impl.binding[this.key];
   }
@@ -191,6 +188,7 @@ class ZArrayInsertEvent extends ZArrayEvent {
     this.index = index;
     this.arr = arr;
   }
+  static METHOD = ++zEventsIota;
   apply() {
     this.impl.binding.splice.apply(this.impl.binding, [this.index, 0].concat(this.arr));
   }
@@ -203,6 +201,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     this.index = index;
     this.length = length;
   }
+  static METHOD = ++zEventsIota;
   apply() {
     this.impl.binding.splice.apply(this.impl.binding, [this.index, this.length]);
   }
@@ -214,6 +213,7 @@ class ZArrayPushEvent extends ZArrayEvent {
     this.keyPath = keyPath;
     this.arr = arr;
   }
+  static METHOD = ++zEventsIota;
   apply() {
     this.impl.binding.push.apply(this.impl.binding, this.arr);
   }
@@ -225,10 +225,20 @@ class ZArrayUnshiftEvent extends ZArrayEvent {
     this.keyPath = keyPath;
     this.arr = arr;
   }
+  static METHOD = ++zEventsIota;
   apply() {
     this.impl.binding.unshift.apply(this.impl.binding, this.arr);
   }
 }
+const ZEVENT_CONSTRUCTORS = [
+  null, // start at 1
+  ZMapSetEvent,
+  ZMapDeleteEvent,
+  ZArrayInsertEvent,
+  ZArrayDeleteEvent,
+  ZArrayPushEvent,
+  ZArrayUnshiftEvent,
+];
 
 class ZDoc extends ZEventEmitter {
   constructor() {
