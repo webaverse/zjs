@@ -372,6 +372,62 @@ class ZArrayInsertEvent extends ZArrayEvent {
   apply() {
     this.impl.binding.splice.apply(this.impl.binding, [this.index, 0].concat(this.arr));
   }
+  serializeUpdate(uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    dataView.setUint32(index, this.constructor.METHOD, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = this.getKeyPathBuffer();
+    dataView.setUint32(index, kpjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(kpjb, index);
+    index += kpjb.byteLength;
+    index = align4(index);
+    
+    const opIndex = this.index;
+    dataView.setUint32(index, opIndex, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const arrb = this.getArrBuffer();
+    dataView.setUint32(index, arrb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(arrb, index);
+    index += arrb.byteLength;
+    index = align4(index);
+  }
+  static deserializeUpdate(doc, encodedEventData) {
+    let index = 0;
+    // skip method
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
+    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    index += kpjbLength;
+    index = align4(index);
+    
+    const opIndex = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+
+    const arrLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const arrb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, arrLength);
+    const arr = zbdecode(arrb);
+    index += arrLength;
+    index = align4(index);
+    
+    const impl = doc.getImplFromKeyPath(keyPath);
+    
+    return new this(
+      impl,
+      keyPath,
+      opIndex,
+      arr
+    );
+  }
 }
 class ZArrayDeleteEvent extends ZArrayEvent {
   constructor(impl, keyPath, index, length) {
