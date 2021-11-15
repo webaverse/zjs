@@ -28,7 +28,12 @@ const _parseBoundEvent = (doc, encodedEventData) => {
   let index = 0;
   const method = dataView.getUint32(index, true);
   const Cons = ZEVENT_CONSTRUCTORS[method];
-  return Cons.deserializeUpdate(doc, encodedEventData);
+  if (Cons) {
+    return Cons.deserializeUpdate(doc, encodedEventData);
+  } else {
+    console.warn('could not parse bound event due to incorrect method', method, ZEVENT_CONSTRUCTORS);
+    return null;
+  }
 };
 
 const textEncoder = new TextEncoder();
@@ -111,10 +116,13 @@ class TransactionCache {
     const uint8Array = new Uint8Array(ab);
     const dataView = new DataView(ab);
     let index = 0;
+    
     dataView.setUint32(index, MESSAGES.TRANSACTION, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     dataView.setUint32(index, this.doc.clock, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     dataView.setUint32(index, this.events.length, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     for (let i = 0; i < this.events.length; i++) {
@@ -122,10 +130,10 @@ class TransactionCache {
       const updateByteLength = updateByteLengths[i];
       
       dataView.setUint32(index, updateByteLength, true);
-      totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
+      index += Uint32Array.BYTES_PER_ELEMENT; // length
       
       event.serializeUpdate(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, updateByteLength));
-      totalSize += updateByteLength;
+      index += updateByteLength;
     }
     return uint8Array;
   }
@@ -149,7 +157,9 @@ class ZEvent {
   }
   getKeyPathBuffer() {
     if (this.keyPathBuffer === null) {
-      this.keyPathBuffer = textEncoder.encode(JSON.stringify(this.keyPathJson));
+      this.keyPathBuffer = textEncoder.encode(
+        JSON.stringify(this.keyPath)
+      );
     }
     return this.keyPathBuffer;
   }
@@ -159,7 +169,7 @@ class ZEvent {
   serializeUpdate(uint8Array) {
     throw new Error('not implemented');
   }
-  static deserializeUpdate(doc, encodedEventData) {
+  static deserializeUpdate(doc, uint8Array) {
     throw new Error('not implemented');
   }
 }
@@ -253,7 +263,7 @@ class ZMapSetEvent extends ZMapEvent {
     index += vb.byteLength;
     index = align4(index);
   }
-  static deserializeUpdate(doc, encodedEventData) {
+  static deserializeUpdate(doc, uint8Array) {
     let index = 0;
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
@@ -335,7 +345,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     index += vb.byteLength;
     index = align4(index);
   }
-  static deserializeUpdate(doc, encodedEventData) {
+  static deserializeUpdate(doc, uint8Array) {
     let index = 0;
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
@@ -417,7 +427,7 @@ class ZArrayInsertEvent extends ZArrayEvent {
     index += arrb.byteLength;
     index = align4(index);
   }
-  static deserializeUpdate(doc, encodedEventData) {
+  static deserializeUpdate(doc, uint8Array) {
     let index = 0;
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
@@ -496,7 +506,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     dataView.setUint32(index, opLength, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
   }
-  static deserializeUpdate(doc, encodedEventData) {
+  static deserializeUpdate(doc, uint8Array) {
     let index = 0;
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
@@ -570,7 +580,9 @@ class ZArrayPushEvent extends ZArrayEvent {
     index += arrb.byteLength;
     index = align4(index);
   }
-  static deserializeUpdate(doc, encodedEventData) {
+  static deserializeUpdate(doc, uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
     let index = 0;
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
@@ -578,6 +590,7 @@ class ZArrayPushEvent extends ZArrayEvent {
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
+    console.log('decode key path', kpjbLength, JSON.stringify(textDecoder.decode(kpjb)));
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
     index = align4(index);
@@ -644,7 +657,9 @@ class ZArrayUnshiftEvent extends ZArrayEvent {
     index += arrb.byteLength;
     index = align4(index);
   }
-  static deserializeUpdate(doc, encodedEventData) {
+  static deserializeUpdate(doc, uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
     let index = 0;
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
