@@ -183,8 +183,6 @@ class ZObservable {
     this.binding = binding;
     this.keyPath = keyPath;
     this.doc = doc;
-
-    this.observers = [];
   }
   observe(fn) {
     let observers = observersMap.get(this);
