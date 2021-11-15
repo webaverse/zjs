@@ -28,6 +28,11 @@ const ADDENDUM_CONSTRUCTORS = [
   Float32Array,
   Float64Array,
 ];
+const _alignN = n => index => {
+  const r = index % n;
+  return r === 0 ? index : (index + n - r);
+};
+const _align4 = _alignN(4);
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -35,6 +40,7 @@ function zbencode(o) {
   let recursionIndex = 0;
   const addendums = [];
   const addendumIndexes = [];
+  const addendumTypes = [];
   const _recurse = o => {
     recursionIndex++;
     if (Array.isArray(o)) {
@@ -56,7 +62,7 @@ function zbencode(o) {
       addendums.push(o);
       addendumIndexes.push(recursionIndex);
       const addendumType = ADDENDUM_TYPES[o.constructor.name];
-      addendumType.push(addendumType)
+      addendumTypes.push(addendumType)
       return null;
     } else if (
       o === null || o === undefined ||
@@ -81,11 +87,14 @@ function zbencode(o) {
   let totalSize = 0;
   totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
   totalSize += sb.byteLength; // data
+  totalSize = _align4(totalSize);
   totalSize += Uint32Array.BYTES_PER_ELEMENT; // count
   for (const addendum of addendums) {
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // index
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // type
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
-    totalSize += a.byteLength; // data
+    totalSize += addendum.byteLength; // data
+    totalSize = _align4(totalSize);
   }
   
   const ab = new ArrayBuffer(totalSize);
@@ -100,6 +109,7 @@ function zbencode(o) {
       
       uint8Array.set(sb, index);
       index += sb.byteLength;
+      index = _align4(index);
     }
     // addendums
     dataView.setUint32(index, addendums.length, true);
@@ -115,11 +125,12 @@ function zbencode(o) {
       dataView.setUint32(index, addendumType, true);
       index += Uint32Array.BYTES_PER_ELEMENT;
       
-      dataView.setUint32(index, a.byteLength, true);
+      dataView.setUint32(index, addendum.byteLength, true);
       index += Uint32Array.BYTES_PER_ELEMENT;
       
-      uint8Array.set(new Uint8Array(a.buffer, a.byteOffset, a.byteLength), index);
-      index += a.byteLength;
+      uint8Array.set(new Uint8Array(addendum.buffer, addendum.byteOffset, addendum.byteLength), index);
+      index += addendum.byteLength;
+      index = _align4(index);
     }
   }
   return uint8Array;
@@ -133,10 +144,11 @@ function zbdecode(uint8Array) {
   
   const sb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, sbLength);
   index += sbLength;
+  index = _align4(index);
   const s = textDecoder.decode(sb);
   const j = JSON.parse(s);
   
-  const numAddendums = dataView.setUint32(index, true);
+  const numAddendums = dataView.getUint32(index, true);
   index += Uint32Array.BYTES_PER_ELEMENT;
   
   const addendums = Array(numAddendums);
@@ -157,13 +169,18 @@ function zbdecode(uint8Array) {
       console.warn('failed to find tyed array cons for', addendumType);
     }
     const addendum = TypedArrayCons ?
-      new TypedArrayCons(a.buffer, a.byteOffset + index, a.byteLength)
+      new TypedArrayCons(
+        uint8Array.buffer,
+        uint8Array.byteOffset + index,
+        addendumLength / TypedArrayCons.BYTES_PER_ELEMENT
+      )
     : null;
-    index += a.byteLength;
+    index += addendumLength;
+    index = _align4(index);
     
-    addendums.push(addendum);
-    addendumIndexes.push(addendumIndex);
-    addendumTypes.push(addendumType);
+    addendums[i] = addendum;
+    addendumIndexes[i] = addendumIndex;
+    addendumTypes[i] = addendumType;
   }
   
   {
@@ -199,7 +216,11 @@ function zbdecode(uint8Array) {
         return null;
       }
     };
-    return _recurse(j);
+    const result = _recurse(j);
+    if (currentAddendum !== addendums.length) {
+      console.warn('did not bind all addendums', result, currentAddendum, addendums);
+    }
+    return result;
   }
 }
 

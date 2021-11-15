@@ -10,7 +10,13 @@ describe('zencode', function() {
       const o = {
         s,
       };
-      assert.equal(o, Z.zbdecode(Z.zbencode(o)));
+      assert.deepEqual(o, Z.zbdecode(Z.zbencode(o)));
+      
+      const float32Array = Float32Array.from([1, 2, 2]);
+      const o2 = {
+        float32Array,
+      };
+      assert.deepEqual(o2, Z.zbdecode(Z.zbencode(o2)));
     });
   });
 });
