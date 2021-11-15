@@ -541,33 +541,40 @@ function applyUpdate(zdoc, uint8Array, transactionOrigin) {
   let index = 0;
   const method = dataView.getUint32(index, true);
   index += Uint32Array.BYTES_PER_ELEMENT;
-  switch (method) {
-    case MESSAGES.STATE_RESET: {
-      const clock = dataView.getUint32(index, true);
+  
+  const _handleStateMessage = () => {
+    const clock = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength);
+    const state = zbdecode(encodedData);
+    zdoc.setClockState(clock, state);
+  };
+  const _handleTransactionMessage = () => {
+    const clock = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const numEvents = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    for (let i = 0; i < numEvents; i++) {
+      const eventLength = dataView.getUint32(index, true);
       index += Uint32Array.BYTES_PER_ELEMENT;
       
-      const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength);
-      const state = zbdecode(encodedData);
-      zdoc.setClockState(clock, state);
+      const encodedEventData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, eventLength);
+      // XXX parse and apply the event here
+      // XXX handle conflicts
+      index += eventLength;
+      index = align4(index);
+    }
+  };
+  switch (method) {
+    case MESSAGES.STATE_RESET: {
+      _handleStateMessage();
       break;
     }
     case MESSAGES.TRANSACTION: {
-      const clock = dataView.getUint32(index, true);
-      index += Uint32Array.BYTES_PER_ELEMENT;
-      
-      const numEvents = dataView.getUint32(index, true);
-      index += Uint32Array.BYTES_PER_ELEMENT;
-      
-      for (let i = 0; i < numEvents; i++) {
-        const eventLength = dataView.getUint32(index, true);
-        index += Uint32Array.BYTES_PER_ELEMENT;
-        
-        const encodedEventData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, eventLength);
-        // XXX parse and apply the event here
-        // XXX handle conflicts
-        index += eventLength;
-        index = align4(index);
-      }
+      _handleTransactionMessage();
       break;
     }
     default: {
