@@ -434,7 +434,7 @@ class ZArray extends ZObservable {
       arr
     );
     if (this.doc) {
-      this.doc.pushTransaction('push');
+      this.doc.pushTransaction('arrayInsert');
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -454,7 +454,7 @@ class ZArray extends ZObservable {
       length
     );
     if (this.doc) {
-      this.doc.pushTransaction('push');
+      this.doc.pushTransaction('arrayDelete');
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -473,7 +473,7 @@ class ZArray extends ZObservable {
       arr
     );
     if (this.doc) {
-      this.doc.pushTransaction('push');
+      this.doc.pushTransaction('arrayPush');
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -492,7 +492,7 @@ class ZArray extends ZObservable {
       arr
     );
     if (this.doc) {
-      this.doc.pushTransaction('push');
+      this.doc.pushTransaction('arrayUnshift');
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
