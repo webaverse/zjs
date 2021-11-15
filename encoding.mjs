@@ -160,7 +160,7 @@ function zbdecode(uint8Array) {
     
     const TypedArrayCons = ADDENDUM_CONSTRUCTORS[addendumType];
     if (!TypedArrayCons) {
-      console.warn('failed to find tyed array cons for', addendumType);
+      console.warn('failed to find typed array cons for', addendumType);
     }
     const addendum = TypedArrayCons ?
       new TypedArrayCons(
