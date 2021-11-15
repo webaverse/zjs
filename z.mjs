@@ -101,6 +101,7 @@ class TransactionCache {
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // num events
     const updateByteLengths = this.events.map(event => {
       totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
+      // console.log('got event', event, event.computeUpdateByteLength.toString());
       const updateByteLength = event.computeUpdateByteLength();
       totalSize += updateByteLength;
       return updateByteLength;
@@ -158,7 +159,7 @@ class ZEvent {
   serializeUpdate(uint8Array) {
     throw new Error('not implemented');
   }
-  deserializeUpdate(doc, encodedEventData) {
+  static deserializeUpdate(doc, encodedEventData) {
     throw new Error('not implemented');
   }
 }
@@ -173,11 +174,13 @@ class ZMapEvent extends ZEvent {
     if (this.keyBuffer === null) {
       this.keyBuffer = textEncoder.encode(this.key);
     }
+    return this.keyBuffer;
   }
   getValueBuffer() {
     if (this.valueBuffer === null) {
       this.valueBuffer = zbencode(this.value);
     }
+    return this.valueBuffer;
   }
 }
 class ZArrayEvent extends ZEvent {
@@ -190,6 +193,7 @@ class ZArrayEvent extends ZEvent {
     if (this.arrBuffer === null) {
       this.arrBuffer = zbencode(this.arr);
     }
+    return this.arrBuffer;
   }
 }
 class ZMapSetEvent extends ZMapEvent {
@@ -212,7 +216,7 @@ class ZMapSetEvent extends ZMapEvent {
     totalSize = align4(totalSize);
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
-    totalSize += this.getValueBuffer().byteLength; // key data
+    totalSize += this.getKeyBuffer().byteLength; // key data
     totalSize = align4(totalSize);
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // value length
@@ -238,8 +242,8 @@ class ZMapSetEvent extends ZMapEvent {
     const kb = this.getKeyBuffer();
     dataView.setUint32(index, kb.byteLength, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(vb, index);
-    index += vb.byteLength;
+    uint8Array.set(kb, index);
+    index += kb.byteLength;
     index = align4(index);
     
     const vb = this.getValueBuffer();
@@ -372,6 +376,22 @@ class ZArrayInsertEvent extends ZArrayEvent {
   apply() {
     this.impl.binding.splice.apply(this.impl.binding, [this.index, 0].concat(this.arr));
   }
+  computeUpdateByteLength() {
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // op index
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // arr length
+    totalSize += this.getArrBuffer().byteLength; // arr data
+    totalSize = align4(totalSize);
+    
+    return totalSize;
+  }
   serializeUpdate(uint8Array) {
     const dataView = _makeDataView(uint8Array);
     
@@ -441,6 +461,19 @@ class ZArrayDeleteEvent extends ZArrayEvent {
   apply() {
     this.impl.binding.splice.apply(this.impl.binding, [this.index, this.length]);
   }
+  computeUpdateByteLength() {
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // op index
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // op length
+    
+    return totalSize;
+  }
   serializeUpdate(uint8Array) {
     const dataView = _makeDataView(uint8Array);
     
@@ -502,6 +535,20 @@ class ZArrayPushEvent extends ZArrayEvent {
   apply() {
     this.impl.binding.push.apply(this.impl.binding, this.arr);
   }
+  computeUpdateByteLength() {
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // arr length
+    totalSize += this.getArrBuffer().byteLength; // arr data
+    totalSize = align4(totalSize);
+    
+    return totalSize;
+  }
   serializeUpdate(uint8Array) {
     const dataView = _makeDataView(uint8Array);
     
@@ -561,6 +608,20 @@ class ZArrayUnshiftEvent extends ZArrayEvent {
   static METHOD = ++zEventsIota;
   apply() {
     this.impl.binding.unshift.apply(this.impl.binding, this.arr);
+  }
+  computeUpdateByteLength() {
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // arr length
+    totalSize += this.getArrBuffer().byteLength; // arr data
+    totalSize = align4(totalSize);
+    
+    return totalSize;
   }
   serializeUpdate(uint8Array) {
     const dataView = _makeDataView(uint8Array);
@@ -958,7 +1019,6 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
     
     const numEvents = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    
     for (let i = 0; i < numEvents; i++) {
       const eventLength = dataView.getUint32(index, true);
       index += Uint32Array.BYTES_PER_ELEMENT;
