@@ -7,6 +7,12 @@ describe('zencode', function() {
       const s = 'lol';
       assert.equal(s, Z.zbdecode(Z.zbencode(s)));
     
+      const n = 42;
+      assert.equal(n, Z.zbdecode(Z.zbencode(n)));
+    
+      const a = [s, n];
+      assert.equal(a, Z.zbdecode(Z.zbencode(a)));
+
       const o = {
         s,
       };
