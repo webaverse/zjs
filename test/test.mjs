@@ -11,7 +11,7 @@ describe('zencode', function() {
       assert.equal(n, Z.zbdecode(Z.zbencode(n)));
     
       const a = [s, n];
-      assert.equal(a, Z.zbdecode(Z.zbencode(a)));
+      assert.deepEqual(a, Z.zbdecode(Z.zbencode(a)));
 
       const o = {
         s,
