@@ -165,26 +165,9 @@ class ZEvent {
 class ZMapEvent extends ZEvent {
   constructor(impl, keyPath) {
     super(impl, keyPath);
-  }
-}
-class ZArrayEvent extends ZEvent {
-  constructor(impl, keyPath) {
-    super(impl, keyPath);
-  }
-}
-class ZMapSetEvent extends ZMapEvent {
-  constructor(impl, keyPath, key, value) {
-    super(impl, keyPath);
-    
-    this.key = key;
-    this.value = value;
-
+  
     this.keyBuffer = null;
     this.valueBuffer = null;
-  }
-  static METHOD = ++zEventsIota;
-  apply() {
-    this.impl.binding[this.key] = this.value;
   }
   getKeyBuffer() {
     if (this.keyBuffer === null) {
@@ -195,6 +178,30 @@ class ZMapSetEvent extends ZMapEvent {
     if (this.valueBuffer === null) {
       this.valueBuffer = zbencode(this.value);
     }
+  }
+}
+class ZArrayEvent extends ZEvent {
+  constructor(impl, keyPath) {
+    super(impl, keyPath);
+    
+    this.arrBuffer = null;
+  }
+  getArrBuffer() {
+    if (this.arrBuffer === null) {
+      this.arrBuffer = zbencode(this.arr);
+    }
+  }
+}
+class ZMapSetEvent extends ZMapEvent {
+  constructor(impl, keyPath, key, value) {
+    super(impl, keyPath);
+    
+    this.key = key;
+    this.value = value;
+  }
+  static METHOD = ++zEventsIota;
+  apply() {
+    this.impl.binding[this.key] = this.value;
   }
   computeUpdateByteLength() {
     let totalSize = 0;
