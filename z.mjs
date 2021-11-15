@@ -2,6 +2,13 @@ const MESSAGES = (() => {
   let iota = 0;
   return {
     STATE_RESET: ++iota,
+    TRANSACTION: ++iota,
+  };
+})();
+const EVENTS = (() => {
+  let iota = 0;
+  return {
+    ARRAY_PUSH: ++iota,
   };
 })();
 const ADDENDUM_TYPES = (() => {
@@ -269,7 +276,8 @@ class ZEventEmitter {
 }
 
 class TransactionCache {
-  constructor(origin) {
+  constructor(doc, origin) {
+    this.doc = doc;
     this.origin = origin;
     this.events = [];
   }
@@ -278,14 +286,58 @@ class TransactionCache {
   }
   triggerEvents() {
     for (const event of this.events) {
-      console.log('trigger event', event);
-      // fn(origin);
+      event.triggerObservers();
     }
   }
   serializeUpdate() {
-    const uint8Array = new Uint8Array();
-    // XXX
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // clock
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // num events
+    const updateByteLengths = this.events.map(event => {
+      totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
+      const updateByteLength = events.computeUpdateByteLength();
+      totalSize += updateByteLength;
+      return updateByteLength;
+    });
+    
+    const uint8Array = new Uint8Array(totalSize);
+    const dataView = new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
+    let index = 0;
+    dataView.setUint32(index, MESSAGES.TRANSACTION, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    dataView.setUint32(index, this.doc.clock, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    dataView.setUint32(index, this.events.length, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    for (let i = 0; i < this.events.length; i++) {
+      const event = this.events[i];
+      const updateByteLength = updateByteLengths[i];
+      
+      dataView.setUint32(index, updateByteLength, true);
+      totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
+      
+      events.serializeUpdate(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength));
+      totalSize += updateByteLength;
+    }
     return uint8Array;
+  }
+}
+
+const observersMap = new WeakMap();
+class ZPushEvent {
+  constructor(zArray, keyPath, arr) {
+    this.zArray = zArray;
+    this.keyPath = keyPath;
+    this.arr = arr;
+  }
+  triggerObservers() {
+    const observers = observersMap.get(this.zArray);
+    if (observers) {
+      for (const fn of observers) {
+        fn(this);
+      }
+    }
   }
 }
 
@@ -294,7 +346,7 @@ class ZDoc extends ZEventEmitter {
     super();
 
     this.state = {};
-    this.clock = 0; // XXX send this with STATE_RESET and UPDATE-type messages
+    this.clock = 0;
     this.transactionDepth = 0;
     this.transactionCache = null;
   }
@@ -314,8 +366,7 @@ class ZDoc extends ZEventEmitter {
   }
   pushTransaction(origin) {
     if (++this.transactionDepth === 1) {
-      // XXX make children of the doc call this on sets
-      this.transactionCache = new TransactionCache(origin);
+      this.transactionCache = new TransactionCache(this, origin);
     }
   }
   popTransaction() {
@@ -341,18 +392,28 @@ class ZDoc extends ZEventEmitter {
 }
 
 class ZObservable {
-  constructor(binding) {
+  constructor(binding, keyPath, doc) {
     this.binding = binding;
+    this.keyPath = keyPath;
+    this.doc = doc;
+
     this.observers = [];
-    // XXX add keyPath
   }
   observe(fn) {
-    this.observers.push(fn);
+    let observers = observersMap.get(this);
+    if (!observers) {
+      observers = [];
+      observersMap.set(this, observers);
+    }
+    observers.push(fn);
   }
   unobserve(fn) {
-    const index = this.observers.indexOf(fn);
-    if (index !== -1) {
-      this.observers.splice(index, 1);
+    const observers = observersMap.get(this);
+    if (observers) {
+      const index = observers.indexOf(fn);
+      if (index !== -1) {
+        observers.splice(index, 1);
+      }
     }
   }
   triggerChange(e) {
@@ -368,8 +429,8 @@ class ZObservable {
 }
 
 class ZMap extends ZObservable {
-  constructor(binding) {
-    super(binding);
+  constructor(binding = ZMap.nativeConstructor(), keyPath = [], doc = null) {
+    super(binding, keyPath, doc);
   }
   static nativeConstructor = () => ({});
   has(k) {
@@ -463,8 +524,8 @@ class ZMap extends ZObservable {
 }
 
 class ZArray extends ZObservable {
-  constructor(binding) {
-    super(binding);
+  constructor(binding = ZArray.nativeConstructor(), keyPath = [], doc = null) {
+    super(binding, keyPath, doc);
   }
   static nativeConstructor = () => [];
   get length() {
@@ -500,11 +561,20 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
+    if (this.doc) {
+      this.doc.pushTransaction('push');
+      const event = new ZPushEvent(
+        this,
+        this.keypath.slice()
+          .concat([this.keypath.length + '']),
+        arr
+      );
+      this.doc.transactionCache.pushEvent(event);
+    }
     this.binding.push.apply(this.binding, arr);
-    this.triggerChange(new MessageEvent('change', {
-      data: {
-      },
-    }));
+    if (this.doc) {
+      this.doc.popTransaction();
+    }
   }
   unshift(arr) {
     if (arr.length !== 1) {
@@ -550,6 +620,18 @@ function applyUpdate(zdoc, uint8Array, transactionOrigin) {
       const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength);
       const state = zbdecode(encodedData);
       zdoc.setClockState(clock, state);
+      break;
+    }
+    case MESSAGES.TRANSACTION: {
+      const clock = dataView.getUint32(index, true);
+      index += Uint32Array.BYTES_PER_ELEMENT;
+      
+      const numEvents = dataView.getUint32(index, true);
+      index += Uint32Array.BYTES_PER_ELEMENT;
+      
+      /* const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength);
+      const state = zbdecode(encodedData);
+      zdoc.setClockState(clock, state); */
       break;
     }
     default: {

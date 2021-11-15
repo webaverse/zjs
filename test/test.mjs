@@ -99,7 +99,7 @@ describe('transactions', function() {
       const array2 = doc2.getArray('array');
       
       doc1.on('update', (uint8Array, origin, doc, transaction) => {
-        console.log('got update', uint8Array, origin);
+        // console.log('got update', uint8Array, origin);
         Z.applyUpdate(doc2, uint8Array, origin);
       });
       doc1.transact(() => {
