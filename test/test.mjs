@@ -17,6 +17,15 @@ describe('zencode', function() {
         float32Array,
       };
       assert.deepEqual(o2, Z.zbdecode(Z.zbencode(o2)));
+      
+      const uint8Array = Uint8Array.from([1, 2, 2]);
+      const int16Array = Int8Array.from([1, 2, 2]);
+      const o3 = {
+        uint8Array,
+        int16Array,
+        float32Array,
+      };
+      assert.deepEqual(o3, Z.zbdecode(Z.zbencode(o3)));
     });
   });
 });
