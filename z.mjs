@@ -168,7 +168,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     delete this.impl.binding[this.key];
   }
 }
-class ZInsertEvent extends ZArrayEvent {
+class ZArrayInsertEvent extends ZArrayEvent {
   constructor(impl, keyPath, index, arr) {
     super(impl);
 
@@ -180,7 +180,7 @@ class ZInsertEvent extends ZArrayEvent {
     this.impl.binding.splice.apply(this.impl.binding, [this.index, 0].concat(this.arr));
   }
 }
-class ZDeleteEvent extends ZArrayEvent {
+class ZArrayDeleteEvent extends ZArrayEvent {
   constructor(impl, keyPath, index, length) {
     super(impl);
 
@@ -192,7 +192,7 @@ class ZDeleteEvent extends ZArrayEvent {
     this.impl.binding.splice.apply(this.impl.binding, [this.index, this.length]);
   }
 }
-class ZPushEvent extends ZArrayEvent {
+class ZArrayPushEvent extends ZArrayEvent {
   constructor(impl, keyPath, arr) {
     super(impl);
 
@@ -203,7 +203,7 @@ class ZPushEvent extends ZArrayEvent {
     this.impl.binding.push.apply(this.impl.binding, this.arr);
   }
 }
-class ZUnshiftEvent extends ZArrayEvent {
+class ZArrayUnshiftEvent extends ZArrayEvent {
   constructor(impl, keyPath, arr) {
     super(impl);
 
@@ -426,7 +426,7 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
-    const event = new ZInsertEvent(
+    const event = new ZArrayInsertEvent(
       this,
       this.keyPath.slice()
         .concat([this.keyPath.length + ':i']),
@@ -446,7 +446,7 @@ class ZArray extends ZObservable {
     if (length !== 1) {
       throw new Error('only length 1 is supported');
     }
-    const event = new ZDeleteEvent(
+    const event = new ZArrayDeleteEvent(
       this,
       this.keyPath.slice()
         .concat([this.keyPath.length + ':i']),
@@ -466,7 +466,7 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
-    const event = new ZPushEvent(
+    const event = new ZArrayPushEvent(
       this,
       this.keyPath.slice()
         .concat([this.keyPath.length + ':i']),
@@ -485,7 +485,7 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
-    const event = new ZUnshiftEvent(
+    const event = new ZArrayUnshiftEvent(
       this,
       this.keyPath.slice()
         .concat([this.keyPath.length + ':i']),
