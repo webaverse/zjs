@@ -83,7 +83,7 @@ class TransactionCache {
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // num events
     const updateByteLengths = this.events.map(event => {
       totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
-      const updateByteLength = events.computeUpdateByteLength();
+      const updateByteLength = event.computeUpdateByteLength();
       totalSize += updateByteLength;
       return updateByteLength;
     });
@@ -97,14 +97,16 @@ class TransactionCache {
     index += Uint32Array.BYTES_PER_ELEMENT;
     dataView.setUint32(index, this.events.length, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    // console.log('serialize events 1', this.events);
     for (let i = 0; i < this.events.length; i++) {
       const event = this.events[i];
+      // console.log('serialize events 2', event);
       const updateByteLength = updateByteLengths[i];
       
       dataView.setUint32(index, updateByteLength, true);
       totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
       
-      events.serializeUpdate(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength));
+      event.serializeUpdate(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, updateByteLength));
       totalSize += updateByteLength;
     }
     return uint8Array;
@@ -133,6 +135,12 @@ class ZEvent {
         fn(this);
       }
     }
+  }
+  computeUpdateByteLength() {
+    return 4; // XXX return the correct length in subclases
+  }
+  serializeUpdate(uint8Array) {
+    // XXX serialize the correct data in subclases
   }
 }
 class ZMapEvent extends ZEvent {
@@ -230,7 +238,7 @@ class ZDoc extends ZEventEmitter {
       binding = Type.nativeConstructor();
       this.state[k] = binding;
     }
-    return new Type(binding);
+    return new Type(binding, this);
   }
   getArray(k) {
     return this.get(k, ZArray);
@@ -261,14 +269,13 @@ class ZDoc extends ZEventEmitter {
   }
   setClockState(clock, state) {
     this.clock = clock;
-    this.state = state; // XXX need to trigger observers
+    this.state = state; // XXX need to trigger observers from the old state
   }
 }
 
 class ZObservable {
-  constructor(binding, keyPath, doc) {
+  constructor(binding, doc) {
     this.binding = binding;
-    this.keyPath = keyPath;
     this.doc = doc;
   }
   observe(fn) {
@@ -288,14 +295,17 @@ class ZObservable {
       }
     }
   }
+  getKeyPath() {
+    return []; // XXX return the correct key path by walking the binding upwards
+  }
   toJSON() {
     return this.binding;
   }
 }
 
 class ZMap extends ZObservable {
-  constructor(binding = ZMap.nativeConstructor(), keyPath = [], doc = null) {
-    super(binding, keyPath, doc);
+  constructor(binding = ZMap.nativeConstructor(), doc = null) {
+    super(binding, doc);
   }
   static nativeConstructor = () => ({});
   has(k) {
@@ -305,10 +315,11 @@ class ZMap extends ZObservable {
     return this.binding[k];
   }
   set(k, v) {
+    const keyPath = this.getKeyPath();
+    keyPath.push(k + ':k');
     const event = new ZMapSetEvent(
       this,
-      this.keyPath.slice()
-        .concat([this.keyPath.length + ':k']),
+      keyPath,
       k,
       v
     );
@@ -323,10 +334,11 @@ class ZMap extends ZObservable {
   }
   delete(k) {
     delete this.binding[k];
+    const keyPath = this.getKeyPath();
+    keyPath.push(k + ':k');
     const event = new ZMapDeleteEvent(
       this,
-      this.keyPath.slice()
-        .concat([this.keyPath.length + ':k']),
+      keyPath,
       k
     );
     if (this.doc) {
@@ -409,8 +421,8 @@ class ZMap extends ZObservable {
 }
 
 class ZArray extends ZObservable {
-  constructor(binding = ZArray.nativeConstructor(), keyPath = [], doc = null) {
-    super(binding, keyPath, doc);
+  constructor(binding = ZArray.nativeConstructor(), doc = null) {
+    super(binding, doc);
   }
   static nativeConstructor = () => [];
   get length() {
@@ -426,11 +438,11 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
+    const keyPath = this.getKeyPath();
+    keyPath.push(keyPath.length + ':i');
     const event = new ZArrayInsertEvent(
       this,
-      this.keyPath.slice()
-        .concat([this.keyPath.length + ':i']),
-      index,
+      keyPath,
       arr
     );
     if (this.doc) {
@@ -446,10 +458,11 @@ class ZArray extends ZObservable {
     if (length !== 1) {
       throw new Error('only length 1 is supported');
     }
+    const keyPath = this.getKeyPath();
+    keyPath.push(keyPath.length + ':i');
     const event = new ZArrayDeleteEvent(
       this,
-      this.keyPath.slice()
-        .concat([this.keyPath.length + ':i']),
+      keyPath,
       index,
       length
     );
@@ -466,10 +479,11 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
+    const keyPath = this.getKeyPath();
+    keyPath.push(keyPath.length + ':i');
     const event = new ZArrayPushEvent(
       this,
-      this.keyPath.slice()
-        .concat([this.keyPath.length + ':i']),
+      keyPath,
       arr
     );
     if (this.doc) {
@@ -485,10 +499,11 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
+    const keyPath = this.getKeyPath();
+    keyPath.push(keyPath.length + ':i');
     const event = new ZArrayUnshiftEvent(
       this,
-      this.keyPath.slice()
-        .concat([this.keyPath.length + ':i']),
+      keyPath,
       arr
     );
     if (this.doc) {
