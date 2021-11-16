@@ -89,6 +89,18 @@ describe('ZArray', function() {
   });
 });
 
+describe('complex data', function() {
+  it('mixed', function() {
+    const doc = new Z.Doc();
+    const array = doc.getArray('array');
+    const map = doc.getMap('map');
+    
+    array.push([1]);
+    map.set('key', 'value');
+    assert.deepEqual(doc.toJSON(), {array: [1], map: {key: 'value'}});
+  });
+});
+
 describe('observers', function() {
   describe('basic', function() {
     it('array overservers', function() {

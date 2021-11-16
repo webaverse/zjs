@@ -784,6 +784,14 @@ class ZDoc extends ZEventEmitter {
   getMap(k) {
     return this.get(k, ZMap);
   }
+  transact(fn, origin) {
+    this.pushTransaction(origin);
+    fn();
+    this.popTransaction();
+  }
+  toJSON() {
+    return this.state;
+  }
   pushTransaction(origin) {
     if (++this.transactionDepth === 1) {
       this.transactionCache = new TransactionCache(this, origin);
@@ -800,11 +808,6 @@ class ZDoc extends ZEventEmitter {
       this.history.push(this.transactionCache);
       this.transactionCache = null;
     }
-  }
-  transact(fn, origin) {
-    this.pushTransaction(origin);
-    fn();
-    this.popTransaction();
   }
   setClockState(clock, state) {
     const oldState = this.state;
