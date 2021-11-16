@@ -95,13 +95,22 @@ class ZEventEmitter {
 }
 
 class TransactionCache {
-  constructor(doc, origin, events = []) {
+  constructor(doc, origin, startClock = doc.clock, events = []) {
     this.doc = doc;
     this.origin = origin;
+    this.startClock = startClock;
     this.events = events;
   }
   pushEvent(event) {
     this.events.push(event);
+  }
+  rebase(clock, historyTail) {
+    return new TransactionCache(
+      this.doc,
+      this.origin,
+      clock,
+      this.events
+    );
   }
   serializeUpdate() {
     let totalSize = 0;
@@ -123,7 +132,7 @@ class TransactionCache {
     dataView.setUint32(index, MESSAGES.TRANSACTION, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
-    dataView.setUint32(index, this.doc.clock, true);
+    dataView.setUint32(index, this.startClock, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
     dataView.setUint32(index, this.events.length, true);
@@ -147,7 +156,7 @@ class TransactionCache {
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
     
-    const clock = dataView.getUint32(index, true);
+    const startClock = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
     const numEvents = dataView.getUint32(index, true);
@@ -164,8 +173,7 @@ class TransactionCache {
       index = align4(index);
     }
     
-    const transactionCache = new TransactionCache(doc);
-    transactionCache.events = events;
+    const transactionCache = new TransactionCache(doc, undefined, startClock, events);
     return transactionCache;
   }
 }
@@ -1438,13 +1446,27 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
     doc.setClockState(clock, state);
   };
   const _handleTransactionMessage = () => {
-    const transactionCache = TransactionCache.deserializeUpdate(doc, uint8Array);
+    let transactionCache = TransactionCache.deserializeUpdate(doc, uint8Array);
     
-    // XXX handle conflicts
+    // rebase on top of local history
+    if (transactionCache.startClock === doc.clock) {
+      // nothing
+    } else if (transactionCache.startClock < doc.clock) {
+      const historyTail = doc.history.slice(doc.history.length - (doc.clock - transactionCache.startClock));
+      transactionCache = transactionCache.rebase(doc.clock, historyTail);
+    } else {
+      throw new Error('transaction skipped clock ticks; desynced');
+    }
     
     for (const event of transactionCache.events) {
       event.apply();
+      doc.clock++;
       event.triggerObservers();
+    }
+    
+    if (doc.clock !== transactionCache.startClock + transactionCache.events.length) {
+      console.warn('clock out of sync', doc.clock, transactionCache.startClock + transactionCache.events.length);
+      throw new Error('clock out of sync');
     }
   };
   switch (method) {
