@@ -194,14 +194,9 @@ class ZEvent {
       },
     };
   }
-  triggerObservers(e) {
-    const observers = observersMap.get(this.impl);
-    if (observers) {
-      const e = this.getEvent();
-      for (const fn of observers) {
-        fn(e);
-      }
-    }
+  triggerObservers() {
+    const e = this.getEvent();
+    this.impl.triggerObservers(e);
   }
   getKeyPathBuffer() {
     if (this.keyPathBuffer === null) {
@@ -869,40 +864,166 @@ class ZDoc extends ZEventEmitter {
     }
   }
   setClockState(clock, state) {
-    const oldState = this.state;
-    
-    // remap old impls onto new bindings
-    const _lookupKeyPath = (binding, keyPath) => {
-      for (const key of keyPath) {
-        if (key in binding) {
-          binding = binding[key];
+    const _emitDeleteEvents = state => {
+      const _recurse = binding => {
+        const impl = bindingsMap.get(binding);
+        
+        if (impl instanceof ZDoc) {
+          for (const k in impl.state) {
+            _recurse(impl.state[k]);
+          }
+        } else if (impl instanceof ZArray) {
+          const indexes = Array(impl.length);
+          for (let i = 0; i < impl.length; i++) {
+            indexes[i] = i;
+          }
+          const e = {
+            added: new Set([]),
+            deleted: new Set(indexes),
+            changes: {
+              keys: new Map(indexes.map(index => {
+                return [
+                  index,
+                  {
+                    action: 'delete',
+                    oldValue: null,
+                  },
+                ];
+              })),
+            },
+          };
+          impl.triggerObservers(e);
+          
+          for (let i = 0; i < impl.binding.length; i++) {
+            _recurse(impl.binding[i]);
+          }
+        } else if (impl instanceof ZMap) {
+          const keys = Array.from(impl.keys());
+          const e = {
+            added: new Set([]),
+            deleted: new Set(keys),
+            changes: {
+              keys: new Map(keys.map(key => {
+                return [
+                  key,
+                  {
+                    action: 'delete',
+                    oldValue: null,
+                  },
+                ];
+              })),
+            },
+          };
+          impl.triggerObservers(e);
+
+          for (const k in impl.binding) {
+            _recurse(impl.binding[k]);
+          }
         } else {
-          return undefined;
+          // nothing
         }
-      }
-      return binding;
+      };
+      _recurse(state);
     };
-    const _recurse = (newBinding, keyPath) => {
-      const oldBinding = _lookupKeyPath(oldState, keyPath);
-      if (oldBinding !== undefined) {
-        const oldImpl = bindingsMap.get(oldBinding);
-        oldImpl.binding = newBinding;
-        bindingsMap.set(newBinding, oldImpl);
-      }
-      
-      if (Array.isArray(newBinding)) {
-        for (let i = 0; i < newBinding.length; i++) {
-          _recurse(newBinding[i], keyPath.concat([i]));
+    const _emitAddEvents = state => {
+      const _recurse = binding => {
+        const impl = bindingsMap.get(binding);
+        
+        if (impl instanceof ZDoc) {
+          for (const k in impl.state) {
+            _recurse(impl.state[k]);
+          }
+        } else if (impl instanceof ZArray) {
+          const indexes = Array(impl.length);
+          for (let i = 0; i < impl.length; i++) {
+            indexes[i] = i;
+          }
+          const e = {
+            added: new Set(indexes),
+            deleted: new Set([]),
+            changes: {
+              keys: new Map(indexes.map(index => {
+                return [
+                  index,
+                  {
+                    action: 'add',
+                    oldValue: null,
+                  },
+                ];
+              })),
+            },
+          };
+          impl.triggerObservers(e);
+          
+          for (let i = 0; i < impl.binding.length; i++) {
+            _recurse(impl.binding[i]);
+          }
+        } else if (impl instanceof ZMap) {
+          const keys = Array.from(impl.keys());
+          const e = {
+            added: new Set(keys),
+            deleted: new Set([]),
+            changes: {
+              keys: new Map(keys.map(key => {
+                return [
+                  key,
+                  {
+                    action: 'add',
+                    oldValue: null,
+                  },
+                ];
+              })),
+            },
+          };
+          impl.triggerObservers(e);
+
+          for (const k in impl.binding) {
+            _recurse(impl.binding[k]);
+          }
+        } else {
+          // nothing
         }
-      } else if (newBinding !== null && typeof newBinding === 'object') {
-        for (const k in newBinding) {
-          _recurse(newBinding[k], keyPath.concat([k]));
-        }
-      } else {
-        // nothing
-      }
+      };
+      _recurse(state);
     };
-    _recurse(state, []);
+    const _remapState = (oldState, newState) => {
+      // remap old impls onto new bindings
+      const _lookupKeyPath = (binding, keyPath) => {
+        for (const key of keyPath) {
+          if (key in binding) {
+            binding = binding[key];
+          } else {
+            return undefined;
+          }
+        }
+        return binding;
+      };
+      const _recurse = (newBinding, keyPath) => {
+        const oldBinding = _lookupKeyPath(oldState, keyPath);
+        if (oldBinding !== undefined) {
+          const oldImpl = bindingsMap.get(oldBinding);
+          oldImpl.binding = newBinding;
+          bindingsMap.set(newBinding, oldImpl);
+        }
+        
+        if (Array.isArray(newBinding)) {
+          for (let i = 0; i < newBinding.length; i++) {
+            _recurse(newBinding[i], keyPath.concat([i]));
+          }
+        } else if (newBinding !== null && typeof newBinding === 'object') {
+          for (const k in newBinding) {
+            _recurse(newBinding[k], keyPath.concat([k]));
+          }
+        } else {
+          // nothing
+        }
+      };
+      _recurse(newState, []);
+    };
+    
+    _emitDeleteEvents(this.state);
+    _remapState(this.state, state);
+    _emitAddEvents(state);
     
     // XXX trigger observers from the old state
     
@@ -958,6 +1079,14 @@ class ZObservable {
       const index = observers.indexOf(fn);
       if (index !== -1) {
         observers.splice(index, 1);
+      }
+    }
+  }
+  triggerObservers(e) {
+    const observers = observersMap.get(this);
+    if (observers) {
+      for (const fn of observers) {
+        fn(e);
       }
     }
   }
