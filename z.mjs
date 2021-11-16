@@ -385,11 +385,13 @@ class ZMapDeleteEvent extends ZMapEvent {
     const kb = this.getKeyBuffer();
     dataView.setUint32(index, kb.byteLength, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(vb, index);
-    index += vb.byteLength;
+    uint8Array.set(kb, index);
+    index += kb.byteLength;
     index = align4(index);
   }
   static deserializeUpdate(doc, uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
     let index = 0;
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
@@ -406,7 +408,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kbLength);
     const key = textDecoder.decode(kb);
-    index += vbLength;
+    index += kbLength;
     index = align4(index);
     
     const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
@@ -414,8 +416,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     return new this(
       impl,
       keyPath,
-      key,
-      value
+      key
     );
   }
 }
@@ -473,6 +474,8 @@ class ZArrayInsertEvent extends ZArrayEvent {
     index = align4(index);
   }
   static deserializeUpdate(doc, uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
     let index = 0;
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
@@ -553,6 +556,8 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
   }
   static deserializeUpdate(doc, uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
     let index = 0;
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;

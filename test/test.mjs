@@ -145,7 +145,7 @@ describe('observers', function() {
 
 describe('transactions', function() {
   describe('basic', function() {
-    it('array transactions', function() {
+    it('array push', function() {
       const doc1 = new Z.Doc();
       const array1 = doc1.getArray('array');
       
@@ -162,7 +162,7 @@ describe('transactions', function() {
       assert.deepEqual(array1.toJSON(), ['lol']);
       assert.deepEqual(array2.toJSON(), ['lol']);
     });
-    it('map transactions', function() {
+    it('map set', function() {
       const doc1 = new Z.Doc();
       const map1 = doc1.getMap('map');
       
@@ -178,6 +178,23 @@ describe('transactions', function() {
       });
       assert.deepEqual(map1.toJSON(), {key: 'value'});
       assert.deepEqual(map2.toJSON(), {key: 'value'});
+    });
+    it('map delete', function() {
+      const doc1 = new Z.Doc();
+      const map1 = doc1.getMap('map');
+      
+      const doc2 = new Z.Doc();
+      const map2 = doc2.getMap('map');
+      
+      doc1.on('update', (uint8Array, origin, doc, transaction) => {
+        Z.applyUpdate(doc2, uint8Array, origin);
+      });
+      doc1.transact(() => {
+        map1.set('key', 'value');
+        map1.delete('key');
+      });
+      assert.deepEqual(map1.toJSON(), {});
+      assert.deepEqual(map2.toJSON(), {});
     });
   });
 });
