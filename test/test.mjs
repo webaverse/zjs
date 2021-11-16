@@ -103,7 +103,7 @@ describe('complex data', function() {
 
 describe('observers', function() {
   describe('basic', function() {
-    it('array overservers', function() {
+    it('array observers', function() {
       {
         const doc = new Z.Doc();
         const array = doc.getArray('array');
@@ -127,7 +127,7 @@ describe('observers', function() {
         assert.equal(numObserves, 0);
       }
     });
-    it('map overservers', function() {
+    it('map observers', function() {
       {
         const doc = new Z.Doc();
         const map = doc.getMap('map');
