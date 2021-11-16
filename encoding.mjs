@@ -203,7 +203,7 @@ function zbdecode(uint8Array) {
         }
         return childResult;
       } else {
-        console.warn('ignoring during zbencode:', o);
+        console.warn('ignoring during zbdecode:', o);
         return null;
       }
     };
