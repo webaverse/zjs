@@ -1448,7 +1448,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
   const _handleTransactionMessage = () => {
     let transactionCache = TransactionCache.deserializeUpdate(doc, uint8Array);
     
-    // rebase on top of local history
+    // rebase on top of local history as needed
     if (transactionCache.startClock === doc.clock) {
       // nothing
     } else if (transactionCache.startClock < doc.clock) {
