@@ -104,8 +104,6 @@ class TransactionCache {
     this.events.push(event);
   }
   triggerObservers() {
-    const implToEMap = new Map();
-    
     for (const event of this.events) {
       const actionSpec = event.getAction();
       
