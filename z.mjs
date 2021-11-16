@@ -873,48 +873,52 @@ class ZDoc extends ZEventEmitter {
             _recurse(impl.state[k]);
           }
         } else if (impl instanceof ZArray) {
-          const indexes = Array(impl.length);
-          for (let i = 0; i < impl.length; i++) {
-            indexes[i] = i;
+          if (impl.length > 0) {
+            const indexes = Array(impl.length);
+            for (let i = 0; i < impl.length; i++) {
+              indexes[i] = i;
+            }
+            const e = {
+              added: new Set([]),
+              deleted: new Set(indexes),
+              changes: {
+                keys: new Map(indexes.map(index => {
+                  return [
+                    index,
+                    {
+                      action: 'delete',
+                      oldValue: null,
+                    },
+                  ];
+                })),
+              },
+            };
+            impl.triggerObservers(e);
           }
-          const e = {
-            added: new Set([]),
-            deleted: new Set(indexes),
-            changes: {
-              keys: new Map(indexes.map(index => {
-                return [
-                  index,
-                  {
-                    action: 'delete',
-                    oldValue: null,
-                  },
-                ];
-              })),
-            },
-          };
-          impl.triggerObservers(e);
           
           for (let i = 0; i < impl.binding.length; i++) {
             _recurse(impl.binding[i]);
           }
         } else if (impl instanceof ZMap) {
           const keys = Array.from(impl.keys());
-          const e = {
-            added: new Set([]),
-            deleted: new Set(keys),
-            changes: {
-              keys: new Map(keys.map(key => {
-                return [
-                  key,
-                  {
-                    action: 'delete',
-                    oldValue: null,
-                  },
-                ];
-              })),
-            },
-          };
-          impl.triggerObservers(e);
+          if (keys.length > 0) {
+            const e = {
+              added: new Set([]),
+              deleted: new Set(keys),
+              changes: {
+                keys: new Map(keys.map(key => {
+                  return [
+                    key,
+                    {
+                      action: 'delete',
+                      oldValue: null,
+                    },
+                  ];
+                })),
+              },
+            };
+            impl.triggerObservers(e);
+          }
 
           for (const k in impl.binding) {
             _recurse(impl.binding[k]);
@@ -934,48 +938,52 @@ class ZDoc extends ZEventEmitter {
             _recurse(impl.state[k]);
           }
         } else if (impl instanceof ZArray) {
-          const indexes = Array(impl.length);
-          for (let i = 0; i < impl.length; i++) {
-            indexes[i] = i;
+          if (impl.length > 0) {
+            const indexes = Array(impl.length);
+            for (let i = 0; i < impl.length; i++) {
+              indexes[i] = i;
+            }
+            const e = {
+              added: new Set(indexes),
+              deleted: new Set([]),
+              changes: {
+                keys: new Map(indexes.map(index => {
+                  return [
+                    index,
+                    {
+                      action: 'add',
+                      oldValue: null,
+                    },
+                  ];
+                })),
+              },
+            };
+            impl.triggerObservers(e);
           }
-          const e = {
-            added: new Set(indexes),
-            deleted: new Set([]),
-            changes: {
-              keys: new Map(indexes.map(index => {
-                return [
-                  index,
-                  {
-                    action: 'add',
-                    oldValue: null,
-                  },
-                ];
-              })),
-            },
-          };
-          impl.triggerObservers(e);
           
           for (let i = 0; i < impl.binding.length; i++) {
             _recurse(impl.binding[i]);
           }
         } else if (impl instanceof ZMap) {
           const keys = Array.from(impl.keys());
-          const e = {
-            added: new Set(keys),
-            deleted: new Set([]),
-            changes: {
-              keys: new Map(keys.map(key => {
-                return [
-                  key,
-                  {
-                    action: 'add',
-                    oldValue: null,
-                  },
-                ];
-              })),
-            },
-          };
-          impl.triggerObservers(e);
+          if (keys.length > 0) {
+            const e = {
+              added: new Set(keys),
+              deleted: new Set([]),
+              changes: {
+                keys: new Map(keys.map(key => {
+                  return [
+                    key,
+                    {
+                      action: 'add',
+                      oldValue: null,
+                    },
+                  ];
+                })),
+              },
+            };
+            impl.triggerObservers(e);
+          }
 
           for (const k in impl.binding) {
             _recurse(impl.binding[k]);

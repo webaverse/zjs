@@ -266,6 +266,10 @@ describe('sync', function() {
       const doc3 = new Z.Doc();
       const map3 = doc3.getMap('map');
       
+      map1.id = 1;
+      map2.id = 2;
+      map3.id = 3;
+      
       map1.set('key', 'value');
       
       {
@@ -276,9 +280,6 @@ describe('sync', function() {
         assert.deepEqual(map2.toJSON(), {key: 'value'});
       }
       {
-        const uint8Array = Z.encodeStateAsUpdate(doc2);
-        Z.applyUpdate(doc3, uint8Array);
-        
         let numObserves = 0;
         const observe = e => {
           assert.deepEqual(e.added, new Set(['key']));
@@ -296,8 +297,11 @@ describe('sync', function() {
           numObserves++
         };
         map3.observe(observe);
-        assert.equal(numObserves, 1);
+        
+        const uint8Array = Z.encodeStateAsUpdate(doc2);
+        Z.applyUpdate(doc3, uint8Array);
 
+        assert.equal(numObserves, 1);
         assert.deepEqual(map3.toJSON(), {key: 'value'});
       }
     });
