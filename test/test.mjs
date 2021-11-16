@@ -109,6 +109,18 @@ describe('observers', function() {
         const array = doc.getArray('array');
         let numObserves = 0;
         const observe = e => {
+          assert.deepEqual(e.added, new Set([0]));
+          assert.deepEqual(e.deleted, new Set([]));
+          assert.deepEqual(e.changes, {
+            keys: new Map([[
+              0,
+              {
+                action: 'add',
+                oldValue: null,
+              },
+            ]]),
+          });
+          
           numObserves++;
         };
         array.observe(observe);
@@ -124,6 +136,7 @@ describe('observers', function() {
         };
         array.observe(observe);
         array.unobserve(observe);
+        array.push([1]);
         assert.equal(numObserves, 0);
       }
     });
@@ -133,6 +146,18 @@ describe('observers', function() {
         const map = doc.getMap('map');
         let numObserves = 0;
         const observe = e => {
+          assert.deepEqual(e.added, new Set([]));
+          assert.deepEqual(e.deleted, new Set([]));
+          assert.deepEqual(e.changes, {
+            keys: new Map([[
+              'key',
+              {
+                action: 'update',
+                oldValue: null,
+              },
+            ]]),
+          });
+          
           numObserves++;
         };
         map.observe(observe);

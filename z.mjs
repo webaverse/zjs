@@ -183,13 +183,15 @@ class ZEvent {
     return {
       added: new Set(actionSpec.action === 'add' ? [actionSpec.key] : []),
       deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
-      keys: new Map([[
-        actionSpec.key,
-        {
-          action: actionSpec.action,
-          oldValue: null, // we do not track old values
-        },
-      ]]),
+      changes: {
+        keys: new Map([[
+          actionSpec.key,
+          {
+            action: actionSpec.action,
+            oldValue: null, // we do not track old values
+          },
+        ]]),
+      },
     };
   }
   triggerObservers(e) {
