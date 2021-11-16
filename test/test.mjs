@@ -89,6 +89,80 @@ describe('ZArray', function() {
   });
 });
 
+describe('api limits', function() {
+  it('array limits', function() {
+    const doc = new Z.Doc();
+    const array = doc.getArray('array');
+
+    {
+      let numThrows = 0;
+      try {
+        array.push([1, 2]);
+      } catch (err) {
+        numThrows++;
+      }
+      assert.equal(numThrows, 1);
+    }
+    {
+      let numThrows = 0;
+      try {
+        array.insert(0, [1, 2]);
+      } catch (err) {
+        numThrows++;
+      }
+      assert.equal(numThrows, 1);
+    }
+    {
+      let numThrows = 0;
+      try {
+        array.push([1, 2]);
+      } catch (err) {
+        numThrows++;
+      }
+      assert.equal(numThrows, 1);
+    }
+    {
+      let numThrows = 0;
+      try {
+        array.unshift([1, 2]);
+      } catch (err) {
+        numThrows++;
+      }
+      assert.equal(numThrows, 1);
+    }
+  });
+  it('repeat array insert', function() {
+    const doc = new Z.Doc();
+    const array = doc.getArray('array');
+    const map = new Z.Map();
+    
+    array.push([map]);
+    
+    let numThrows = 0;
+    try {
+      array.push([map]);
+    } catch (err) {
+      numThrows++;
+    }
+    assert.equal(numThrows, 1);
+  });
+  it('repeat map insert', function() {
+    const doc = new Z.Doc();
+    const map = doc.getMap('map');
+    const array = new Z.Array();
+    
+    map.set('lol', array);
+    
+    let numThrows = 0;
+    try {
+      map.set('lol', array);
+    } catch (err) {
+      numThrows++;
+    }
+    assert.equal(numThrows, 1);
+  });
+});
+
 describe('complex data', function() {
   it('mixed', function() {
     const doc = new Z.Doc();

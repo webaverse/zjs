@@ -1026,6 +1026,8 @@ const _ensureImplBound = (v, parent) => {
     if (!impl) {
       bindingsMap.set(v.binding, v);
       bindingParentsMap.set(v.binding, parent.binding);
+    } else {
+      throw new Error('already bound');
     }
   }
 };
