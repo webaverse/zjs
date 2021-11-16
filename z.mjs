@@ -809,6 +809,7 @@ class ZDoc extends ZEventEmitter {
   setClockState(clock, state) {
     const oldState = this.state;
     
+    // remap old impls onto new bindings
     const _lookupKeyPath = (binding, keyPath) => {
       for (const key of keyPath) {
         if (key in binding) {
