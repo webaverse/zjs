@@ -120,7 +120,6 @@ class TransactionCache {
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // num events
     const updateByteLengths = this.events.map(event => {
       totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
-      // console.log('got event', event, event.computeUpdateByteLength.toString());
       const updateByteLength = event.computeUpdateByteLength();
       totalSize += updateByteLength;
       return updateByteLength;
