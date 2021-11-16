@@ -817,51 +817,54 @@ class ZObservable {
   }
   getKeyPath() {
     const keyPath = [];
-    for (let binding = this.binding; !!binding; binding = bindingParentsMap.get(binding)) {
+    for (let binding = this.binding;;) {
       const parentBinding = bindingParentsMap.get(binding);
       const parentImpl = bindingsMap.get(parentBinding);
-      if (!parentImpl) {
-        // nothing
-      } else if (parentImpl.isZDoc) {
-        const impl = bindingsMap.get(binding);
-        const keyType = (() => {
-          if (impl.isZArray) {
-            return 'a';
-          } else if (impl.isZMap) {
-            return 'm';
+      if (parentImpl) {
+        if (parentImpl.isZDoc) {
+          const impl = bindingsMap.get(binding);
+          const keyType = (() => {
+            if (impl.isZArray) {
+              return 'a';
+            } else if (impl.isZMap) {
+              return 'm';
+            } else {
+              return null;
+            }
+          })();
+          if (keyType !== null) {
+            const keys = Object.keys(parentBinding);
+            const matchingKeys = keys.filter(k => parentBinding[k] === binding);
+            if (matchingKeys.length === 1) {
+              const key = matchingKeys[0];
+              keyPath.push([key, keyType]);
+            } else {
+              console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
+            }
           } else {
-            return null;
+            console.warn('unknown key type', impl);
           }
-        })();
-        if (keyType !== null) {
+        } else if (parentImpl.isZArray) {
+          const index = parentBinding.indexOf(binding);
+          keyPath.push([index, 'i']);
+        } else if (parentImpl.isZMap) {
           const keys = Object.keys(parentBinding);
           const matchingKeys = keys.filter(k => parentBinding[k] === binding);
           if (matchingKeys.length === 1) {
             const key = matchingKeys[0];
-            keyPath.push([key, keyType]);
+            keyPath.push([key, 'k']);
           } else {
             console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
           }
         } else {
-          console.warn('unknown key type', impl);
+          console.log('failed to find binding getting key path', binding);
         }
-      } else if (parentImpl.isZArray) {
-        const index = parentBinding.indexOf(binding);
-        keyPath.push([index, 'i']);
-      } else if (parentImpl.isZMap) {
-        const keys = Object.keys(parentBinding);
-        const matchingKeys = keys.filter(k => parentBinding[k] === binding);
-        if (matchingKeys.length === 1) {
-          const key = matchingKeys[0];
-          keyPath.push([key, 'k']);
-        } else {
-          console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
-        }
+        binding = parentImpl;
       } else {
-        console.log('failed to find binding getting key path', binding);
+        break;
       }
     }
-    return keyPath.reverse(); // XXX return the correct key path by walking the binding upwards
+    return keyPath.reverse();
   }
   toJSON() {
     return this.binding;
