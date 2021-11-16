@@ -145,7 +145,7 @@ describe('observers', function() {
 
 describe('sync', function() {
   describe('transactions', function() {
-    it('array push', function() {
+    it('array insert', function() {
       const doc1 = new Z.Doc();
       const array1 = doc1.getArray('array');
       
@@ -156,7 +156,7 @@ describe('sync', function() {
         Z.applyUpdate(doc2, uint8Array, origin);
       });
       doc1.transact(() => {
-        array1.push(['lol']);
+        array1.insert(0, ['lol']);
       });
       assert.deepEqual(array1.toJSON(), ['lol']);
       assert.deepEqual(array2.toJSON(), ['lol']);
@@ -177,6 +177,38 @@ describe('sync', function() {
       });
       assert.deepEqual(array1.toJSON(), []);
       assert.deepEqual(array2.toJSON(), []);
+    });
+    it('array push', function() {
+      const doc1 = new Z.Doc();
+      const array1 = doc1.getArray('array');
+      
+      const doc2 = new Z.Doc();
+      const array2 = doc2.getArray('array');
+      
+      doc1.on('update', (uint8Array, origin, doc, transaction) => {
+        Z.applyUpdate(doc2, uint8Array, origin);
+      });
+      doc1.transact(() => {
+        array1.push(['lol']);
+      });
+      assert.deepEqual(array1.toJSON(), ['lol']);
+      assert.deepEqual(array2.toJSON(), ['lol']);
+    });
+    it('array unshift', function() {
+      const doc1 = new Z.Doc();
+      const array1 = doc1.getArray('array');
+      
+      const doc2 = new Z.Doc();
+      const array2 = doc2.getArray('array');
+      
+      doc1.on('update', (uint8Array, origin, doc, transaction) => {
+        Z.applyUpdate(doc2, uint8Array, origin);
+      });
+      doc1.transact(() => {
+        array1.unshift(['lol']);
+      });
+      assert.deepEqual(array1.toJSON(), ['lol']);
+      assert.deepEqual(array2.toJSON(), ['lol']);
     });
     it('map set', function() {
       const doc1 = new Z.Doc();
