@@ -104,8 +104,23 @@ class TransactionCache {
     this.events.push(event);
   }
   triggerObservers() {
+    const implToEMap = new Map();
+    
     for (const event of this.events) {
-      event.triggerObservers();
+      const actionSpec = event.getAction();
+      
+      const e = {
+        added: new Set(actionSpec.action === 'add' ? [actionSpec.key] : []),
+        deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
+        keys: new Map([[
+          actionSpec.key,
+          {
+            action: actionSpec.action,
+            oldValue: null, // we do not track old values
+          },
+        ]]),
+      };
+      event.triggerObservers(e);
     }
   }
   applyEvents() {
@@ -188,11 +203,11 @@ class ZEvent {
     
     this.keyPathBuffer = null;
   }
-  triggerObservers() {
+  triggerObservers(e) {
     const observers = observersMap.get(this.impl);
     if (observers) {
       for (const fn of observers) {
-        fn(this);
+        fn(e);
       }
     }
   }
@@ -257,6 +272,12 @@ class ZMapSetEvent extends ZMapEvent {
   static METHOD = ++zEventsIota;
   apply() {
     this.impl.binding[this.key] = this.value;
+  }
+  getAction() {
+    return {
+      action: 'update',
+      key: this.key,
+    };
   }
   computeUpdateByteLength() {
     let totalSize = 0;
@@ -354,6 +375,12 @@ class ZMapDeleteEvent extends ZMapEvent {
   apply() {
     delete this.impl.binding[this.key];
   }
+  getAction() {
+    return {
+      action: 'update',
+      key: this.key,
+    };
+  }
   computeUpdateByteLength() {
     let totalSize = 0;
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
@@ -431,6 +458,12 @@ class ZArrayInsertEvent extends ZArrayEvent {
   static METHOD = ++zEventsIota;
   apply() {
     this.impl.binding.splice.apply(this.impl.binding, [this.index, 0].concat(this.arr));
+  }
+  getAction() {
+    return {
+      action: 'add',
+      key: this.index,
+    };
   }
   computeUpdateByteLength() {
     let totalSize = 0;
@@ -520,6 +553,12 @@ class ZArrayDeleteEvent extends ZArrayEvent {
   apply() {
     this.impl.binding.splice.apply(this.impl.binding, [this.index, this.length]);
   }
+  getAction() {
+    return {
+      action: 'delete',
+      key: this.index,
+    };
+  }
   computeUpdateByteLength() {
     let totalSize = 0;
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
@@ -587,16 +626,23 @@ class ZArrayDeleteEvent extends ZArrayEvent {
   }
 }
 class ZArrayPushEvent extends ZArrayEvent {
-  constructor(impl, keyPath, arr) {
+  constructor(impl, keyPath, index, arr) {
     super(impl);
 
     this.keyPath = keyPath;
+    this.index = index;
     this.arr = arr;
   }
   static METHOD = ++zEventsIota;
   apply() {
     this.impl.binding.push.apply(this.impl.binding, this.arr);
   }
+  getAction() {
+    return {
+      action: 'add',
+      key: this.index,
+    };
+  }
   computeUpdateByteLength() {
     let totalSize = 0;
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
@@ -604,6 +650,8 @@ class ZArrayPushEvent extends ZArrayEvent {
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
     totalSize += this.getKeyPathBuffer().byteLength; // key path data
     totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // op index
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // arr length
     totalSize += this.getArrBuffer().byteLength; // arr data
@@ -621,13 +669,19 @@ class ZArrayPushEvent extends ZArrayEvent {
     const kpjb = this.getKeyPathBuffer();
     dataView.setUint32(index, kpjb.byteLength, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     uint8Array.set(kpjb, index);
     index += kpjb.byteLength;
     index = align4(index);
     
+    const opIndex = this.index;
+    dataView.setUint32(index, opIndex, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const arrb = this.getArrBuffer();
     dataView.setUint32(index, arrb.byteLength, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     uint8Array.set(arrb, index);
     index += arrb.byteLength;
     index = align4(index);
@@ -647,8 +701,12 @@ class ZArrayPushEvent extends ZArrayEvent {
     index += kpjbLength;
     index = align4(index);
 
+    const opIndex = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+
     const arrLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const arrb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, arrLength);
     const arr = zbdecode(arrb);
     index += arrLength;
@@ -659,21 +717,29 @@ class ZArrayPushEvent extends ZArrayEvent {
     return new this(
       impl,
       keyPath,
+      opIndex,
       arr
     );
   }
 }
 class ZArrayUnshiftEvent extends ZArrayEvent {
-  constructor(impl, keyPath, arr) {
+  constructor(impl, keyPath, index, arr) {
     super(impl);
 
     this.keyPath = keyPath;
+    this.index = index;
     this.arr = arr;
   }
   static METHOD = ++zEventsIota;
   apply() {
     this.impl.binding.unshift.apply(this.impl.binding, this.arr);
   }
+  getAction() {
+    return {
+      action: 'add',
+      key: this.index,
+    };
+  }
   computeUpdateByteLength() {
     let totalSize = 0;
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
@@ -681,6 +747,8 @@ class ZArrayUnshiftEvent extends ZArrayEvent {
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
     totalSize += this.getKeyPathBuffer().byteLength; // key path data
     totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // op index
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // arr length
     totalSize += this.getArrBuffer().byteLength; // arr data
@@ -698,13 +766,19 @@ class ZArrayUnshiftEvent extends ZArrayEvent {
     const kpjb = this.getKeyPathBuffer();
     dataView.setUint32(index, kpjb.byteLength, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     uint8Array.set(kpjb, index);
     index += kpjb.byteLength;
     index = align4(index);
     
+    const opIndex = this.index;
+    dataView.setUint32(index, opIndex, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const arrb = this.getArrBuffer();
     dataView.setUint32(index, arrb.byteLength, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     uint8Array.set(arrb, index);
     index += arrb.byteLength;
     index = align4(index);
@@ -724,8 +798,12 @@ class ZArrayUnshiftEvent extends ZArrayEvent {
     index += kpjbLength;
     index = align4(index);
 
+    const opIndex = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+
     const arrLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const arrb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, arrLength);
     const arr = zbdecode(arrb);
     index += arrLength;
@@ -736,6 +814,7 @@ class ZArrayUnshiftEvent extends ZArrayEvent {
     return new this(
       impl,
       keyPath,
+      opIndex,
       arr
     );
   }
@@ -1165,6 +1244,7 @@ class ZArray extends ZObservable {
     const event = new ZArrayPushEvent(
       this,
       keyPath,
+      this.length,
       arr
     );
     if (this.doc) {
@@ -1188,6 +1268,7 @@ class ZArray extends ZObservable {
     const event = new ZArrayUnshiftEvent(
       this,
       keyPath,
+      0,
       arr
     );
     if (this.doc) {
