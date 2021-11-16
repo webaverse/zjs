@@ -1,6 +1,6 @@
 # z
 
-CRDT like [yjs](https://github.com/yjs/yjs), but faster and more opinionated for game engine usage.
+CRDT like [yjs](https://github.com/yjs/yjs), but faster for game engine usage.
 
 ## Benefits
 
