@@ -305,6 +305,8 @@ class ZMapSetEvent extends ZMapEvent {
     index = align4(index);
   }
   static deserializeUpdate(doc, uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
     let index = 0;
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
@@ -321,7 +323,7 @@ class ZMapSetEvent extends ZMapEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kbLength);
     const key = textDecoder.decode(kb);
-    index += vbLength;
+    index += kbLength;
     index = align4(index);
 
     const vbLength = dataView.getUint32(index, true);
