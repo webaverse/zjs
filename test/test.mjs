@@ -263,13 +263,43 @@ describe('sync', function() {
       const doc2 = new Z.Doc();
       const map2 = doc2.getMap('map');
       
+      const doc3 = new Z.Doc();
+      const map3 = doc3.getMap('map');
+      
       map1.set('key', 'value');
       
-      const uint8Array = Z.encodeStateAsUpdate(doc1);
-      Z.applyUpdate(doc2, uint8Array);
+      {
+        const uint8Array = Z.encodeStateAsUpdate(doc1);
+        Z.applyUpdate(doc2, uint8Array);
 
-      assert.deepEqual(map1.toJSON(), {key: 'value'});
-      assert.deepEqual(map2.toJSON(), {key: 'value'});
+        assert.deepEqual(map1.toJSON(), {key: 'value'});
+        assert.deepEqual(map2.toJSON(), {key: 'value'});
+      }
+      {
+        const uint8Array = Z.encodeStateAsUpdate(doc2);
+        Z.applyUpdate(doc3, uint8Array);
+        
+        let numObserves = 0;
+        const observe = e => {
+          assert.deepEqual(e.added, new Set(['key']));
+          assert.deepEqual(e.deleted, new Set([]));
+          assert.deepEqual(e.changes, {
+            keys: new Map([[
+              'key',
+              {
+                action: 'add',
+                oldValue: null,
+              },
+            ]]),
+          });
+          
+          numObserves++
+        };
+        map3.observe(observe);
+        assert.equal(numObserves, 1);
+
+        assert.deepEqual(map3.toJSON(), {key: 'value'});
+      }
     });
   });
   describe('transactions', function() {
