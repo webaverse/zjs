@@ -1033,8 +1033,6 @@ class ZDoc extends ZEventEmitter {
     _remapState(this.state, state);
     _emitAddEvents(state);
     
-    // XXX trigger observers from the old state
-    
     this.clock = clock;
     this.state = state;
     this.history = [];
