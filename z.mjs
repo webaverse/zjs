@@ -271,6 +271,7 @@ class ZMapSetEvent extends ZMapEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
@@ -290,7 +291,7 @@ class ZMapSetEvent extends ZMapEvent {
     index += vbLength;
     index = align4(index);
     
-    const impl = doc.getImplFromKeyPath(keyPath);
+    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
     
     return new this(
       impl,
@@ -353,6 +354,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
@@ -365,7 +367,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     index += vbLength;
     index = align4(index);
     
-    const impl = doc.getImplFromKeyPath(keyPath);
+    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
     
     return new this(
       impl,
@@ -435,6 +437,7 @@ class ZArrayInsertEvent extends ZArrayEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
@@ -450,7 +453,7 @@ class ZArrayInsertEvent extends ZArrayEvent {
     index += arrLength;
     index = align4(index);
     
-    const impl = doc.getImplFromKeyPath(keyPath);
+    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
     
     return new this(
       impl,
@@ -514,6 +517,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
@@ -525,7 +529,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     const opLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
-    const impl = doc.getImplFromKeyPath(keyPath);
+    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
     
     return new this(
       impl,
@@ -590,8 +594,8 @@ class ZArrayPushEvent extends ZArrayEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
     index = align4(index);
@@ -603,7 +607,7 @@ class ZArrayPushEvent extends ZArrayEvent {
     index += arrLength;
     index = align4(index);
     
-    const impl = doc.getImplFromKeyPath(keyPath);
+    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
     
     return new this(
       impl,
@@ -667,6 +671,7 @@ class ZArrayUnshiftEvent extends ZArrayEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
@@ -679,7 +684,7 @@ class ZArrayUnshiftEvent extends ZArrayEvent {
     index += arrLength;
     index = align4(index);
     
-    const impl = doc.getImplFromKeyPath(keyPath);
+    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
     
     return new this(
       impl,
@@ -707,6 +712,10 @@ class ZDoc extends ZEventEmitter {
     this.history = [];
     this.transactionDepth = 0;
     this.transactionCache = null;
+    
+    this.isZDoc = true;
+    
+    bindingsMap.set(this.state, this);
   }
   get(k, Type) {
     let binding = this.state[k];
@@ -718,7 +727,7 @@ class ZDoc extends ZEventEmitter {
     if (!impl) {
       impl = new Type(binding, this);
       bindingsMap.set(binding, impl);
-      bindingParentsMap.set(binding, this);
+      bindingParentsMap.set(binding, this.state);
     }
     return impl;
   }
@@ -755,9 +764,32 @@ class ZDoc extends ZEventEmitter {
     this.state = state; // XXX need to trigger observers from the old state
     this.history = [];
   }
-  getImplFromKeyPath(keyPath) {
-    console.log('get impl from key path', keyPath);
-    return null; // XXX return the correct impl by walking the key path downwards
+  getImplByKeyPath(keyPath) {
+    let binding = this.state;
+    let impl = bindingsMap.get(binding);
+    for (const [key, type] of keyPath) {
+      let value = binding[key];
+      
+      const child = (() => {
+        switch (type) {
+          case 'a': return impl.get(key, ZArray);
+          case 'm': return impl.get(key, ZMap);
+          case 'i': return impl.get(key);
+          case 'k': return impl.get(key);
+          case 'e': return impl.get(key);
+          case 'v': return impl.get(key);
+          default: return null;
+        }
+      })();
+      if (child) {
+        impl = child;
+        binding = child.binding ?? null;
+      } else {
+        console.warn('could not look up key path', key, impl);
+        return null;
+      }
+    }
+    return impl;
   }
 }
 
@@ -785,8 +817,51 @@ class ZObservable {
   }
   getKeyPath() {
     const keyPath = [];
-    console.log('get key path', keyPath);
-    return keyPath; // XXX return the correct key path by walking the binding upwards
+    for (let binding = this.binding; !!binding; binding = bindingParentsMap.get(binding)) {
+      const parentBinding = bindingParentsMap.get(binding);
+      const parentImpl = bindingsMap.get(parentBinding);
+      if (!parentImpl) {
+        // nothing
+      } else if (parentImpl.isZDoc) {
+        const impl = bindingsMap.get(binding);
+        const keyType = (() => {
+          if (impl.isZArray) {
+            return 'a';
+          } else if (impl.isZMap) {
+            return 'm';
+          } else {
+            return null;
+          }
+        })();
+        if (keyType !== null) {
+          const keys = Object.keys(parentBinding);
+          const matchingKeys = keys.filter(k => parentBinding[k] === binding);
+          if (matchingKeys.length === 1) {
+            const key = matchingKeys[0];
+            keyPath.push([key, keyType]);
+          } else {
+            console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
+          }
+        } else {
+          console.warn('unknown key type', impl);
+        }
+      } else if (parentImpl.isZArray) {
+        const index = parentBinding.indexOf(binding);
+        keyPath.push([index, 'i']);
+      } else if (parentImpl.isZMap) {
+        const keys = Object.keys(parentBinding);
+        const matchingKeys = keys.filter(k => parentBinding[k] === binding);
+        if (matchingKeys.length === 1) {
+          const key = matchingKeys[0];
+          keyPath.push([key, 'k']);
+        } else {
+          console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
+        }
+      } else {
+        console.log('failed to find binding getting key path', binding);
+      }
+    }
+    return keyPath.reverse(); // XXX return the correct key path by walking the binding upwards
   }
   toJSON() {
     return this.binding;
@@ -801,13 +876,15 @@ const _ensureImplBound = (v, parent) => {
     const impl = bindingsMap.get(v.binding);
     if (!impl) {
       bindingsMap.set(v.binding, v);
-      bindingParentsMap.set(v.binding, parent);
+      bindingParentsMap.set(v.binding, parent.binding);
     }
   }
 };
 class ZMap extends ZObservable {
   constructor(binding = ZMap.nativeConstructor(), doc = null) {
     super(binding, doc);
+    
+    this.isZMap = true;
   }
   static nativeConstructor = () => ({});
   has(k) {
@@ -820,7 +897,7 @@ class ZMap extends ZObservable {
     _ensureImplBound(v, this);
     
     const keyPath = this.getKeyPath();
-    keyPath.push(k + ':k');
+    keyPath.push([k, 'v']);
     const event = new ZMapSetEvent(
       this,
       keyPath,
@@ -839,7 +916,7 @@ class ZMap extends ZObservable {
   delete(k) {
     delete this.binding[k];
     const keyPath = this.getKeyPath();
-    keyPath.push(k + ':k');
+    keyPath.push([k, 'v']);
     const event = new ZMapDeleteEvent(
       this,
       keyPath,
@@ -927,6 +1004,8 @@ class ZMap extends ZObservable {
 class ZArray extends ZObservable {
   constructor(binding = ZArray.nativeConstructor(), doc = null) {
     super(binding, doc);
+    
+    this.isZArray = true;
   }
   static nativeConstructor = () => [];
   get length() {
@@ -946,7 +1025,7 @@ class ZArray extends ZObservable {
     arr.forEach(e => _ensureImplBound(e, this));
     
     const keyPath = this.getKeyPath();
-    keyPath.push(keyPath.length + ':i');
+    keyPath.push([index, 'e']);
     const event = new ZArrayInsertEvent(
       this,
       keyPath,
@@ -966,7 +1045,7 @@ class ZArray extends ZObservable {
       throw new Error('only length 1 is supported');
     }
     const keyPath = this.getKeyPath();
-    keyPath.push(keyPath.length + ':i');
+    keyPath.push([index, 'e']);
     const event = new ZArrayDeleteEvent(
       this,
       keyPath,
@@ -990,7 +1069,7 @@ class ZArray extends ZObservable {
     arr.forEach(e => _ensureImplBound(e, this));
     
     const keyPath = this.getKeyPath();
-    keyPath.push(keyPath.length + ':i');
+    keyPath.push([this.length, 'e']);
     const event = new ZArrayPushEvent(
       this,
       keyPath,
@@ -1013,7 +1092,7 @@ class ZArray extends ZObservable {
     arr.forEach(e => _ensureImplBound(e, this));
     
     const keyPath = this.getKeyPath();
-    keyPath.push(keyPath.length + ':i');
+    keyPath.push([0, 'e']);
     const event = new ZArrayUnshiftEvent(
       this,
       keyPath,
