@@ -1267,7 +1267,7 @@ class ZArray extends ZObservable {
       this.doc.popTransaction();
     }
   }
-  [Symbol.Iterator] = () => {
+  [Symbol.iterator] = () => {
     let i = 0;
     return {
       next: () => {
