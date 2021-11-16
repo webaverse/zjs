@@ -155,6 +155,9 @@ class TransactionCache {
     const dataView = _makeDataView(uint8Array);
     
     let index = 0;
+    // skip method
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const clock = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
@@ -1184,8 +1187,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
     doc.setClockState(clock, state);
   };
   const _handleTransactionMessage = () => {
-    const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index);
-    const transactionCache = TransactionCache.deserializeUpdate(doc, encodedData);
+    const transactionCache = TransactionCache.deserializeUpdate(doc, uint8Array);
     transactionCache.applyEvents(); // XXX handle conflicts
   };
   switch (method) {
