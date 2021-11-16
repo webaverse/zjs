@@ -11,6 +11,14 @@ const MESSAGES = (() => {
     TRANSACTION: ++iota,
   };
 })();
+const TRANSACTION_TYPES = {
+  mapSet: Symbol('mapSet'),
+  mapDelete: Symbol('mapDelete'),
+  arrayInsert: Symbol('arrayInsert'),
+  arrayDelete: Symbol('arrayDelete'),
+  arrayPush: Symbol('arrayPush'),
+  arrayUnshift: Symbol('arrayUnshift'),
+};
 
 /* const _parseKey = s => {
   const match = s.match(/^([\s\S]*?)(?::[\s\S])?$/);
@@ -908,7 +916,7 @@ class ZMap extends ZObservable {
       v
     );
     if (this.doc) {
-      this.doc.pushTransaction('mapSet'); // XXX make these symbols and have one for update
+      this.doc.pushTransaction(TRANSACTION_TYPES.mapSet);
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -926,7 +934,7 @@ class ZMap extends ZObservable {
       k
     );
     if (this.doc) {
-      this.doc.pushTransaction('mapDelete');
+      this.doc.pushTransaction(TRANSACTION_TYPES.mapDelete);
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -1035,7 +1043,7 @@ class ZArray extends ZObservable {
       arr
     );
     if (this.doc) {
-      this.doc.pushTransaction('arrayInsert');
+      this.doc.pushTransaction(TRANSACTION_TYPES.arrayInsert);
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -1056,7 +1064,7 @@ class ZArray extends ZObservable {
       length
     );
     if (this.doc) {
-      this.doc.pushTransaction('arrayDelete');
+      this.doc.pushTransaction(TRANSACTION_TYPES.arrayDelete);
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -1079,7 +1087,7 @@ class ZArray extends ZObservable {
       arr
     );
     if (this.doc) {
-      this.doc.pushTransaction('arrayPush');
+      this.doc.pushTransaction(TRANSACTION_TYPES.arrayPush);
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -1102,7 +1110,7 @@ class ZArray extends ZObservable {
       arr
     );
     if (this.doc) {
-      this.doc.pushTransaction('arrayUnshift');
+      this.doc.pushTransaction(TRANSACTION_TYPES.arrayUnshift);
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
