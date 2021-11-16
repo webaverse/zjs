@@ -807,8 +807,44 @@ class ZDoc extends ZEventEmitter {
     this.popTransaction();
   }
   setClockState(clock, state) {
+    const oldState = this.state;
+    
+    const _lookupKeyPath = (binding, keyPath) => {
+      for (const key of keyPath) {
+        if (key in binding) {
+          binding = binding[key];
+        } else {
+          return undefined;
+        }
+      }
+      return binding;
+    };
+    const _recurse = (newBinding, keyPath) => {
+      const oldBinding = _lookupKeyPath(oldState, keyPath);
+      if (oldBinding !== undefined) {
+        const oldImpl = bindingsMap.get(oldBinding);
+        oldImpl.binding = newBinding;
+        bindingsMap.set(newBinding, oldImpl);
+      }
+      
+      if (Array.isArray(newBinding)) {
+        for (let i = 0; i < newBinding.length; i++) {
+          _recurse(newBinding[i], keyPath.concat([i]));
+        }
+      } else if (newBinding !== null && typeof newBinding === 'object') {
+        for (const k in newBinding) {
+          _recurse(newBinding[k], keyPath.concat([k]));
+        }
+      } else {
+        // nothing
+      }
+    };
+    _recurse(state, []);
+    
+    // XXX trigger observers from the old state
+    
     this.clock = clock;
-    this.state = state; // XXX need to trigger observers from the old state
+    this.state = state;
     this.history = [];
   }
   getImplByKeyPath(keyPath) {
@@ -1217,7 +1253,10 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
 function encodeStateAsUpdate(doc) {
   const encodedData = zbencode(doc.state);
   
-  const totalSize = Uint32Array.BYTES_PER_ELEMENT + encodedData.byteLength;
+  const totalSize =
+    Uint32Array.BYTES_PER_ELEMENT +
+    Uint32Array.BYTES_PER_ELEMENT +
+    encodedData.byteLength;
   const ab = new ArrayBuffer(totalSize);
   const uint8Array = new Uint8Array(ab);
   const dataView = new DataView(ab);

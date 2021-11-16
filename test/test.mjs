@@ -144,6 +144,23 @@ describe('observers', function() {
 });
 
 describe('sync', function() {
+  describe('state reset', function() {
+    it('basic state reset', function() {
+      const doc1 = new Z.Doc();
+      const map1 = doc1.getMap('map');
+      
+      const doc2 = new Z.Doc();
+      const map2 = doc2.getMap('map');
+      
+      map1.set('key', 'value');
+      
+      const uint8Array = Z.encodeStateAsUpdate(doc1);
+      Z.applyUpdate(doc2, uint8Array);
+
+      assert.deepEqual(map1.toJSON(), {key: 'value'});
+      assert.deepEqual(map2.toJSON(), {key: 'value'});
+    });
+  });
   describe('transactions', function() {
     it('array insert', function() {
       const doc1 = new Z.Doc();
