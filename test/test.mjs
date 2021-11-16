@@ -89,6 +89,60 @@ describe('ZArray', function() {
   });
 });
 
+describe('observers', function() {
+  describe('basic', function() {
+    it('array overservers', function() {
+      {
+        const doc = new Z.Doc();
+        const array = doc.getArray('array');
+        let numObserves = 0;
+        const observe = e => {
+          numObserves++;
+        };
+        array.observe(observe);
+        array.push([1]);
+        assert.equal(numObserves, 1);
+      }
+      {
+        const doc = new Z.Doc();
+        const array = doc.getArray('array');
+        let numObserves = 0;
+        const observe = e => {
+          numObserves++;
+        };
+        array.observe(observe);
+        array.unobserve(observe);
+        assert.equal(numObserves, 0);
+      }
+    });
+    it('map overservers', function() {
+      {
+        const doc = new Z.Doc();
+        const map = doc.getMap('map');
+        let numObserves = 0;
+        const observe = e => {
+          numObserves++;
+        };
+        map.observe(observe);
+        map.set('key', 'value');
+        assert.equal(numObserves, 1);
+      }
+      {
+        const doc = new Z.Doc();
+        const map = doc.getMap('map');
+        let numObserves = 0;
+        const observe = e => {
+          numObserves++;
+        };
+        map.observe(observe);
+        map.unobserve(observe);
+        map.set('key', 'value');
+        assert.equal(numObserves, 0);
+      }
+    });
+  });
+});
+
 describe('transactions', function() {
   describe('basic', function() {
     it('should support basic operations', function() {
