@@ -1079,6 +1079,7 @@ class ZArray extends ZObservable {
     const event = new ZArrayInsertEvent(
       this,
       keyPath,
+      index,
       arr
     );
     if (this.doc) {
@@ -1094,6 +1095,7 @@ class ZArray extends ZObservable {
     if (length !== 1) {
       throw new Error('only length 1 is supported');
     }
+    
     const keyPath = this.getKeyPath();
     keyPath.push([index, 'e']);
     const event = new ZArrayDeleteEvent(
