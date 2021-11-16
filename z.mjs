@@ -95,10 +95,10 @@ class ZEventEmitter {
 }
 
 class TransactionCache {
-  constructor(doc, origin) {
+  constructor(doc, origin, events = []) {
     this.doc = doc;
     this.origin = origin;
-    this.events = [];
+    this.events = events;
   }
   pushEvent(event) {
     this.events.push(event);
@@ -106,6 +106,11 @@ class TransactionCache {
   triggerObservers() {
     for (const event of this.events) {
       event.triggerObservers();
+    }
+  }
+  applyEvents() {
+    for (const event of this.events) {
+      event.apply();
     }
   }
   serializeUpdate() {
@@ -145,6 +150,31 @@ class TransactionCache {
       index += updateByteLength;
     }
     return uint8Array;
+  }
+  static deserializeUpdate(doc, uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    const clock = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const numEvents = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const events = Array(numEvents);
+    for (let i = 0; i < numEvents; i++) {
+      const eventLength = dataView.getUint32(index, true);
+      index += Uint32Array.BYTES_PER_ELEMENT;
+      
+      const encodedEventData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, eventLength);
+      const event = _parseBoundEvent(doc, encodedEventData);
+      events[i] = event;
+      index += eventLength;
+      index = align4(index);
+    }
+    
+    const transactionCache = new TransactionCache(doc);
+    transactionCache.events = events;
+    return transactionCache;
   }
 }
 
@@ -1149,30 +1179,14 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
     const clock = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
-    const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, uint8Array.byteLength);
+    const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index);
     const state = zbdecode(encodedData);
     doc.setClockState(clock, state);
   };
   const _handleTransactionMessage = () => {
-    // XXX parse as a TransactionCache
-    
-    const clock = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const numEvents = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    for (let i = 0; i < numEvents; i++) {
-      const eventLength = dataView.getUint32(index, true);
-      index += Uint32Array.BYTES_PER_ELEMENT;
-      
-      const encodedEventData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, eventLength);
-      const event = _parseBoundEvent(doc, encodedEventData);
-      event.apply(); // XXX handle conflicts
-      index += eventLength;
-      index = align4(index);
-    }
-    
-    // XXX push the parsed TransactionCache to this.history in the right slot
+    const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index);
+    const transactionCache = TransactionCache.deserializeUpdate(doc, encodedData);
+    transactionCache.applyEvents(); // XXX handle conflicts
   };
   switch (method) {
     case MESSAGES.STATE_RESET: {
