@@ -103,29 +103,6 @@ class TransactionCache {
   pushEvent(event) {
     this.events.push(event);
   }
-  triggerObservers() {
-    for (const event of this.events) {
-      const actionSpec = event.getAction();
-      
-      const e = {
-        added: new Set(actionSpec.action === 'add' ? [actionSpec.key] : []),
-        deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
-        keys: new Map([[
-          actionSpec.key,
-          {
-            action: actionSpec.action,
-            oldValue: null, // we do not track old values
-          },
-        ]]),
-      };
-      event.triggerObservers(e);
-    }
-  }
-  applyEvents() {
-    for (const event of this.events) {
-      event.apply();
-    }
-  }
   serializeUpdate() {
     let totalSize = 0;
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
@@ -201,9 +178,24 @@ class ZEvent {
     
     this.keyPathBuffer = null;
   }
+  getEvent() {
+    const actionSpec = this.getAction();
+    return {
+      added: new Set(actionSpec.action === 'add' ? [actionSpec.key] : []),
+      deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
+      keys: new Map([[
+        actionSpec.key,
+        {
+          action: actionSpec.action,
+          oldValue: null, // we do not track old values
+        },
+      ]]),
+    };
+  }
   triggerObservers(e) {
     const observers = observersMap.get(this.impl);
     if (observers) {
+      const e = this.getEvent();
       for (const fn of observers) {
         fn(e);
       }
@@ -877,7 +869,6 @@ class ZDoc extends ZEventEmitter {
   popTransaction() {
     if (--this.transactionDepth === 0) {
       this.clock++;
-      this.transactionCache.triggerObservers();
       const uint8Array = this.transactionCache.serializeUpdate();
       if (uint8Array) {
         this.dispatchEvent('update', uint8Array, this.transactionCache.origin, this, null);
@@ -1076,6 +1067,7 @@ class ZMap extends ZObservable {
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
+    event.triggerObservers();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -1094,6 +1086,7 @@ class ZMap extends ZObservable {
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
+    event.triggerObservers();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -1204,6 +1197,7 @@ class ZArray extends ZObservable {
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
+    event.triggerObservers();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -1226,6 +1220,7 @@ class ZArray extends ZObservable {
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
+    event.triggerObservers();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -1250,6 +1245,7 @@ class ZArray extends ZObservable {
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
+    event.triggerObservers();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -1274,6 +1270,7 @@ class ZArray extends ZObservable {
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
+    event.triggerObservers();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -1315,7 +1312,13 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
   };
   const _handleTransactionMessage = () => {
     const transactionCache = TransactionCache.deserializeUpdate(doc, uint8Array);
-    transactionCache.applyEvents(); // XXX handle conflicts
+    
+    // XXX handle conflicts
+    
+    for (const event of transactionCache.events) {
+      event.apply();
+      event.triggerObservers();
+    }
   };
   switch (method) {
     case MESSAGES.STATE_RESET: {
