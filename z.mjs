@@ -166,7 +166,7 @@ class TransactionCache {
   pushEvent(event) {
     this.events.push(event);
   }
-  rebase(clock, resolvePriority, historyTail) {
+  rebase(historyTail) {
     const rebasedEvents = this.events.map(event => {
       if ((event instanceof ZMapSetEvent) || (event instanceof ZMapDeleteEvent)) {        
         let conflict;
@@ -174,7 +174,7 @@ class TransactionCache {
           // torpedo this event
           return new ZNullEvent();
         } else if (conflict = _getConflict(event, historyTail)) {
-          if (this.doc.resolvePriority < resolvePriority) {
+          if (this.resolvePriority < this.doc.resolvePriority) {
             // if we are higher priority, torpedo them and use our value
             while (conflict) {
               const nullEvent = new ZNullEvent();
@@ -221,15 +221,8 @@ class TransactionCache {
         return event;
       }
     });
-    // const rebasedEvents = this.events;
-    
-    return new TransactionCache(
-      this.doc,
-      this.origin,
-      clock,
-      resolvePriority,
-      rebasedEvents
-    );
+    this.events = rebasedEvents;
+    this.startClock += historyTail.length;
   }
   serializeUpdate() {    
     let totalSize = 0;
@@ -1394,7 +1387,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
       // nothing
     } else if (transactionCache.startClock < doc.clock) {
       const historyTail = doc.history.slice(doc.history.length - (doc.clock - transactionCache.startClock));
-      transactionCache = transactionCache.rebase(doc.clock, doc.resolvePriority, historyTail);
+      transactionCache.rebase(historyTail);
     } else {
       throw new Error('transaction skipped clock ticks; desynced');
     }
