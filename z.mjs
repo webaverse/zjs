@@ -111,6 +111,20 @@ class ZEventEmitter {
   }
 }
 
+const _keyPathEquals = (a, b) => {
+  if (a.length === b.length) {
+    for (let i = 0; i < a.length; i++) {
+      const ae = a[i];
+      const be = b[i];
+      if (ae[0] !== be[0] || ae[1] !== be[1]) {
+        return false;
+      }
+    }
+    return true;
+  } else {
+    return false;
+  }
+};
 class TransactionCache {
   constructor(doc, origin, startClock = doc.clock, resolvePriority = doc.resolvePriority, events = []) {
     this.doc = doc;
@@ -123,55 +137,70 @@ class TransactionCache {
     this.events.push(event);
   }
   rebase(clock, resolvePriority, historyTail) {
-    /* const rebasedEvents = this.events.map(event => {
+    const rebasedEvents = this.events.map(event => {
       if (event instanceof ZMapSetEvent || event instanceof ZMapDeleteEvent) {
-        const _parentWasSet = () => false;
-        const _weAreHighestPriority = () => false;
+        const _parentWasSet = () => {
+          return false;
+        };
+        const _getConflict = () => {
+          return historyTail.find(historyEvent => {
+            return (historyEvent instanceof ZMapSetEvent || historyEvent instanceof ZMapDeleteEvent) &&
+              _keyPathEquals(historyEvent.keyPath, event.keyPath);
+          });
+        };
+        const _weAreHigherPriority = () => this.resolvePriority < resolvePriority;
+        
+        let conflict;
         if (_parentWasSet()) {
           // torpedo this event
           return new ZNullEvent();
-        } else if (_selfWasSet()) => {
-          if (_weAreHighestPriority()) {
-            // use our value
-            // XXX splice them from history tail
+        } else if (conflict = _getConflict()) {
+          if (_weAreHigherPriority()) {
+            while (conflict) {
+              const nullEvent = new ZNullEvent();
+              {
+                const index = historyTail.indexOf(conflict);
+                historyTail.splice(index, 1, nullEvent);
+              }
+              {
+                const index = this.history.indexOf(conflict);
+                this.history.splice(index, 1, nullEvent);
+              }
+              conflict = _getConflict();
+            }
+            
+            return event;
           } else {
             // use their value
             return new ZNullEvent();
           }
-        }
-      } else if (event instanceof ZArrayPushEvent) {
-        const preArrayEvents = [];
-        for (const preArrayEvent of preArrayEvents) {
-          // advance our key path by 1
+        } else {
+          // no conflicts; let it through
+          return event;
         }
       } else if (
-        event instanceof ZArrayUnshiftEvent ||
+        event instanceof ZArrayPushEvent ||
         event instanceof ZNullEvent
       ) {
         // we don't have to do anything :)
         return event;
-      } else if (event instanceof ZArrayInsertEvent) {
-        const preArrayEvents = [];
-        for (const preArrayEvent of preArrayEvents) {
-          // advance our key path by 1
-        }
       } else if (event instanceof ZArrayDeleteEvent) {
-        const _alreadyDeleted = () => false;
+        const _alreadyDeleted = () => historyTail.some(historyEvent => {
+          return (historyEvent instanceof ZArrayDeleteEvent) &&
+            _keyPathEquals(historyEvent.keyPath, event.keyPath);
+        });
         if (_alreadyDeleted()) {
           // torpedo this event
           return new ZNullEvent();
         } else {
-          const preArrayEvents = [];
-          for (const preArrayEvent of preArrayEvents) {
-            // advance our key path by 1
-          }
+          return event;
         }
       } else {
         console.warn('unknown event type', event);
         return event;
       }
-    }); */
-    const rebasedEvents = this.events;
+    });
+    // const rebasedEvents = this.events;
     
     return new TransactionCache(
       this.doc,
