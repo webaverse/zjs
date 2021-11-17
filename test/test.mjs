@@ -386,7 +386,7 @@ describe('sync', function() {
     });
   });
   describe('non-conflicting transactions', function() {
-    it('array + map', function() {
+    const arrayMap = forward => function() {
       const doc1 = new Z.Doc();
       const array1 = doc1.getArray('array');
       const map1 = doc1.getMap('map');
@@ -426,8 +426,20 @@ describe('sync', function() {
         map2.set('lol', 'zol');
       }, 'doc2');
       
-      Z.applyUpdate(doc3, doc1Update, 'doc1');
-      Z.applyUpdate(doc3, doc2Update, 'doc2');
+      let fns = [
+        () => {
+          Z.applyUpdate(doc3, doc1Update, 'doc1');
+        },
+        () => {
+          Z.applyUpdate(doc3, doc2Update, 'doc2');
+        },
+      ];
+      if (!forward) {
+        fns = fns.reverse();
+      }
+      for (const fn of fns) {
+        fn();
+      }
       
       assert.deepEqual(array3.toJSON(), ['lol']);
       assert.deepEqual(map3.toJSON(), {lol: 'zol'});
@@ -439,6 +451,8 @@ describe('sync', function() {
       assert.equal(doc1.clock, 2);
       assert.equal(doc2.clock, 2);
       assert.equal(doc3.clock, 2);
-    });
+    }
+    it('array + map', arrayMap(true));
+    it('array + map reverse order', arrayMap(false));
   });
 });
