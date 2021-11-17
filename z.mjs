@@ -1100,8 +1100,9 @@ class ZObservable {
     const keyPath = [];
     for (let binding = this.binding;;) {
       const parentBinding = bindingParentsMap.get(binding);
-      const parentImpl = bindingsMap.get(parentBinding);
-      if (parentImpl) {
+
+      if (parentBinding) {
+        const parentImpl = bindingsMap.get(parentBinding);
         if (parentImpl.isZDoc) {
           const impl = bindingsMap.get(binding);
           const keyType = (() => {
