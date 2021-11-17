@@ -12,11 +12,12 @@ const MESSAGES = (() => {
   };
 })();
 const TRANSACTION_TYPES = {
-  mapSet: Symbol('mapSet'),
-  mapDelete: Symbol('mapDelete'),
-  arrayPush: Symbol('arrayPush'),
-  arrayRemove: Symbol('arrayRemove'),
+  mapSet: 'mapSet',
+  mapDelete: 'mapDelete',
+  arrayPush: 'arrayPush',
+  arrayRemove: 'arrayRemove',
 };
+const textUint8Array = new Uint8Array(4096);
 
 const _makeId = () => Math.round(Math.random() * 0xFFFFFF);
 const _jsonify = o => {
@@ -111,9 +112,12 @@ class ZEventEmitter {
 }
 
 class TransactionCache {
-  constructor(doc, origin, startClock = doc.clock, resolvePriority = doc.resolvePriority, events = []) {
+  constructor(doc, origin = '', startClock = doc.clock, resolvePriority = doc.resolvePriority, events = []) {
     this.doc = doc;
     this.origin = origin;
+    if (typeof origin === 'symbol') {
+      throw new Error('lol');
+    }
     this.startClock = startClock;
     this.resolvePriority = resolvePriority;
     this.events = events;
@@ -181,8 +185,17 @@ class TransactionCache {
     );
   }
   serializeUpdate() {
+    const {read: obr, written: obl} = textEncoder.encodeInto(this.origin, textUint8Array);
+    if (obr !== this.origin.length) {
+      throw new Error('buffer overflow');
+    }
+    const ob = new Uint8Array(textUint8Array.buffer, textUint8Array.byteOffset, obl);
+    
     let totalSize = 0;
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // origin length
+    totalSize += ob.byteLength; // origin data
+    totalSize = align4(totalSize);
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // clock
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // resolve priority
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // num events
@@ -200,6 +213,13 @@ class TransactionCache {
     
     dataView.setUint32(index, MESSAGES.TRANSACTION, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    dataView.setUint32(index, ob.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    uint8Array.set(ob, index);
+    index += ob.byteLength;
+    index = align4(index);
     
     // XXX setBigUint64
     dataView.setUint32(index, this.startClock, true);
@@ -229,6 +249,14 @@ class TransactionCache {
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
     
+    const originLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const originBuffer = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, originLength);
+    const origin = textDecoder.decode(originBuffer);
+    index += originLength;
+    index = align4(index);
+    
     const startClock = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
@@ -249,7 +277,7 @@ class TransactionCache {
       index = align4(index);
     }
     
-    const transactionCache = new TransactionCache(doc, undefined, startClock, resolvePriority, events);
+    const transactionCache = new TransactionCache(doc, origin, startClock, resolvePriority, events);
     return transactionCache;
   }
 }
@@ -571,7 +599,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     totalSize = align4(totalSize);
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
-    totalSize += this.getValueBuffer().byteLength; // key data
+    totalSize += this.getKeyBuffer().byteLength; // key data
     totalSize = align4(totalSize);
     
     return totalSize;
@@ -854,7 +882,7 @@ class ZDoc extends ZEventEmitter {
       if (uint8Array) {
         this.dispatchEvent('update', uint8Array, this.transactionCache.origin, this, null);
       }
-      this.history.push(this.transactionCache);
+      this.history.push.apply(this.history, this.transactionCache.events);
       this.transactionCache = null;
     }
   }
@@ -1405,7 +1433,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
       // nothing
     } else if (transactionCache.startClock < doc.clock) {
       const historyTail = doc.history.slice(doc.history.length - (doc.clock - transactionCache.startClock));
-      transactionCache = transactionCache.rebase(doc.clock, historyTail);
+      transactionCache = transactionCache.rebase(doc.clock, doc.resolvePriority, historyTail);
     } else {
       throw new Error('transaction skipped clock ticks; desynced');
     }
@@ -1415,6 +1443,13 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
       doc.clock++;
       event.triggerObservers();
     }
+    
+    {
+      const uint8Array = transactionCache.serializeUpdate();
+      doc.dispatchEvent('update', uint8Array, transactionCache.origin, this, null);
+    }
+
+    doc.history.push.apply(doc.history, transactionCache.events);
     
     if (doc.clock !== transactionCache.startClock + transactionCache.events.length) {
       console.warn('clock out of sync', doc.clock, transactionCache.startClock + transactionCache.events.length);

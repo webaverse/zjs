@@ -27,6 +27,8 @@ const ADDENDUM_CONSTRUCTORS = [
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
+const textUint8Array = new Uint8Array(1024 * 1024);
+
 function zbencode(o) {
   let recursionIndex = 0;
   const addendums = [];
@@ -73,7 +75,11 @@ function zbencode(o) {
   };
   const j = _recurse(o);
   const s = JSON.stringify(j);
-  const sb = textEncoder.encode(s);
+  const {read: sbr, written: sbl} = textEncoder.encodeInto(s, textUint8Array);
+  if (sbr !== s.length) {
+    throw new Error('buffer overflow');
+  }
+  const sb = new Uint8Array(textUint8Array.buffer, textUint8Array.byteOffset, sbl);
   
   let totalSize = 0;
   totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
