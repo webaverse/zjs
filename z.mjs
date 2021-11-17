@@ -995,11 +995,15 @@ class ZDoc extends ZEventEmitter {
       };
       const _recurse = (newBinding, keyPath) => {
         const oldBinding = _lookupKeyPath(oldState, keyPath);
+        const newParent = keyPath.length > 0 ? _lookupKeyPath(newState, keyPath.slice(0, -1)) : null;
         let oldImpl;
         if (oldBinding !== undefined) {
           oldImpl = bindingsMap.get(oldBinding);
           oldImpl.binding = newBinding;
           bindingsMap.set(newBinding, oldImpl);
+          if (newParent) {
+            bindingParentsMap.set(newBinding, newParent);
+          }
         }
         
         if (oldImpl?.isZArray) {
