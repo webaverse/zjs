@@ -158,6 +158,36 @@ describe('complex data', function() {
     map.set('key', 'value');
     assert.deepEqual(doc.toJSON(), {array: [1], map: {key: 'value'}});
   });
+  it('array of maps', function() {
+    const doc = new Z.Doc();
+    const array = doc.getArray('array');
+
+    const map1 = new Z.Map();
+    const map2 = new Z.Map();
+    const map3 = new Z.Map();
+    array.push([map1]);
+    array.push([map2]);
+    array.push([map3]);
+
+    map2.set('lol2', 'zol2');
+    map1.set('lol1', 32.5);
+    const float32Array = Float32Array.from([1, 2, 3]);
+    map3.set('lol3', float32Array);
+
+    assert.deepEqual(doc.toJSON(), {
+      array: [
+        {
+          lol1: 32.5,
+        },
+        {
+          lol2: 'zol2',
+        },
+        {
+          lol3: float32Array,
+        },
+      ],
+    });
+  });
 });
 
 describe('observers', function() {
