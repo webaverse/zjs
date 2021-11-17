@@ -1124,7 +1124,7 @@ class ZObservable {
               console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
             }
           } else {
-            console.warn('unknown key type', impl);
+            console.warn('unknown key type', impl, parentImpl);
           }
         } else if (parentImpl.isZArray) {
           const index = parentImpl.binding.e.indexOf(binding);
