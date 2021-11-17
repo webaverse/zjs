@@ -22,7 +22,7 @@ export const TRANSACTION_TYPES = {
 const _makeId = () => Math.round(Math.random() * 0xFFFFFF);
 const _jsonify = o => {
   const impl = bindingsMap.get(o);
-  if (impl instanceof ZArray) {
+  if (impl instanceof ZArray) { // XXX would probably be faster with .isZArray
     return o.e.map(_jsonify);
   } else if (Array.isArray(o)) {
     return o.map(_jsonify);
