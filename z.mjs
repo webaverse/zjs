@@ -1028,8 +1028,6 @@ class ZDoc extends ZEventEmitter {
           oldImpl = bindingsMap.get(oldBinding);
           oldImpl.binding = newBinding;
           bindingsMap.set(newBinding, oldImpl);
-        } else {
-          oldImpl = null;
         }
         
         if (oldImpl instanceof ZArray) {
