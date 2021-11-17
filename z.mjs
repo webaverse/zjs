@@ -14,10 +14,26 @@ const MESSAGES = (() => {
 const TRANSACTION_TYPES = {
   mapSet: Symbol('mapSet'),
   mapDelete: Symbol('mapDelete'),
-  arrayInsert: Symbol('arrayInsert'),
-  arrayDelete: Symbol('arrayDelete'),
   arrayPush: Symbol('arrayPush'),
-  arrayUnshift: Symbol('arrayUnshift'),
+  arrayRemove: Symbol('arrayRemove'),
+};
+
+const _makeId = () => Math.round(Math.random() * 0xFFFFFF);
+const _jsonify = o => {
+  const impl = bindingsMap.get(o);
+  if (impl instanceof ZArray) {
+    return o.e.map(_jsonify);
+  } else if (Array.isArray(o)) {
+    return o.map(_jsonify);
+  } else if (o !== null && typeof o === 'object') {
+    const result = {};
+    for (const k in o) {
+      result[k] = _jsonify(o[k]);
+    }
+    return result;
+  } else {
+    return o;
+  }
 };
 
 /* const _parseKey = s => {
@@ -185,6 +201,7 @@ class TransactionCache {
     dataView.setUint32(index, MESSAGES.TRANSACTION, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
+    // XXX setBigUint64
     dataView.setUint32(index, this.startClock, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
@@ -247,19 +264,37 @@ class ZEvent {
   }
   getEvent() {
     const actionSpec = this.getAction();
-    return {
-      added: new Set(actionSpec.action === 'add' ? [actionSpec.key] : []),
-      deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
-      changes: {
-        keys: new Map([[
-          actionSpec.key,
-          {
-            action: actionSpec.action,
-            oldValue: null, // we do not track old values
-          },
-        ]]),
-      },
-    };
+    if (actionSpec.key) {
+      return {
+        added: new Set(actionSpec.action === 'add' ? [actionSpec.key] : []),
+        deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
+        changes: {
+          keys: new Map([[
+            actionSpec.key,
+            {
+              action: actionSpec.action,
+            },
+          ]]),
+          values: new Map(),
+        },
+      };
+    } else if (actionSpec.value) {
+      return {
+        added: new Set(actionSpec.action === 'add' ? [actionSpec.value] : []),
+        deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.value] : []),
+        changes: {
+          keys: new Map(),
+          values: new Map([[
+            actionSpec.value,
+            {
+              action: actionSpec.action,
+            },
+          ]]),
+        },
+      };
+    } else {
+      return null;
+    }
   }
   triggerObservers() {
     const e = this.getEvent();
@@ -593,22 +628,23 @@ class ZMapDeleteEvent extends ZMapEvent {
     );
   }
 }
-class ZArrayInsertEvent extends ZArrayEvent {
-  constructor(impl, keyPath, index, arr) {
+class ZArrayPushEvent extends ZArrayEvent {
+  constructor(impl, keyPath, arr) {
     super(impl);
 
     this.keyPath = keyPath;
-    this.index = index;
     this.arr = arr;
   }
   static METHOD = ++zEventsIota;
   apply() {
-    this.impl.binding.splice.apply(this.impl.binding, [this.index, 0].concat(this.arr));
+    this.impl.binding.e.push.apply(this.impl.binding.e, this.arr);
+    const zid = this.keyPath[this.keyPath.length - 1][0];
+    this.impl.binding.i.push(zid);
   }
   getAction() {
     return {
       action: 'add',
-      key: this.index,
+      value: this.arr[0],
     };
   }
   computeUpdateByteLength() {
@@ -618,8 +654,6 @@ class ZArrayInsertEvent extends ZArrayEvent {
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
     totalSize += this.getKeyPathBuffer().byteLength; // key path data
     totalSize = align4(totalSize);
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // op index
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // arr length
     totalSize += this.getArrBuffer().byteLength; // arr data
@@ -637,17 +671,15 @@ class ZArrayInsertEvent extends ZArrayEvent {
     const kpjb = this.getKeyPathBuffer();
     dataView.setUint32(index, kpjb.byteLength, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     uint8Array.set(kpjb, index);
     index += kpjb.byteLength;
     index = align4(index);
     
-    const opIndex = this.index;
-    dataView.setUint32(index, opIndex, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
     const arrb = this.getArrBuffer();
     dataView.setUint32(index, arrb.byteLength, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     uint8Array.set(arrb, index);
     index += arrb.byteLength;
     index = align4(index);
@@ -666,12 +698,10 @@ class ZArrayInsertEvent extends ZArrayEvent {
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
     index = align4(index);
-    
-    const opIndex = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
 
     const arrLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const arrb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, arrLength);
     const arr = zbdecode(arrb);
     index += arrLength;
@@ -682,27 +712,30 @@ class ZArrayInsertEvent extends ZArrayEvent {
     return new this(
       impl,
       keyPath,
-      opIndex,
       arr
     );
   }
 }
 class ZArrayDeleteEvent extends ZArrayEvent {
-  constructor(impl, keyPath, index, length) {
+  constructor(impl, keyPath) {
     super(impl);
 
     this.keyPath = keyPath;
-    this.index = index;
-    this.length = length;
+    const zid = this.keyPath[this.keyPath.length - 1][0];
+    const index = this.impl.binding.i.indexOf(zid);
+    this.value = this.impl.binding.e[index];
   }
   static METHOD = ++zEventsIota;
   apply() {
-    this.impl.binding.splice.apply(this.impl.binding, [this.index, this.length]);
+    const zid = this.keyPath[this.keyPath.length - 1][0];
+    const index = this.impl.binding.i.indexOf(zid);
+    this.impl.binding.e.splice(index, 1);
+    this.impl.binding.i.splice(index, 1);
   }
   getAction() {
     return {
       action: 'delete',
-      key: this.index,
+      value: this.value,
     };
   }
   computeUpdateByteLength() {
@@ -731,14 +764,6 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     uint8Array.set(kpjb, index);
     index += kpjb.byteLength;
     index = align4(index);
-    
-    const opIndex = this.index;
-    dataView.setUint32(index, opIndex, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const opLength = this.length;
-    dataView.setUint32(index, opLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
   }
   static deserializeUpdate(doc, uint8Array) {
     const dataView = _makeDataView(uint8Array);
@@ -755,202 +780,11 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     index += kpjbLength;
     index = align4(index);
     
-    const opIndex = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const opLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
     const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
     
     return new this(
       impl,
-      keyPath,
-      opIndex,
-      opLength
-    );
-  }
-}
-class ZArrayPushEvent extends ZArrayEvent {
-  constructor(impl, keyPath, index, arr) {
-    super(impl);
-
-    this.keyPath = keyPath;
-    this.index = index;
-    this.arr = arr;
-  }
-  static METHOD = ++zEventsIota;
-  apply() {
-    this.impl.binding.push.apply(this.impl.binding, this.arr);
-  }
-  getAction() {
-    return {
-      action: 'add',
-      key: this.index,
-    };
-  }
-  computeUpdateByteLength() {
-    let totalSize = 0;
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
-    totalSize += this.getKeyPathBuffer().byteLength; // key path data
-    totalSize = align4(totalSize);
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // op index
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // arr length
-    totalSize += this.getArrBuffer().byteLength; // arr data
-    totalSize = align4(totalSize);
-    
-    return totalSize;
-  }
-  serializeUpdate(uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    dataView.setUint32(index, this.constructor.METHOD, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = this.getKeyPathBuffer();
-    dataView.setUint32(index, kpjb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    uint8Array.set(kpjb, index);
-    index += kpjb.byteLength;
-    index = align4(index);
-    
-    const opIndex = this.index;
-    dataView.setUint32(index, opIndex, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const arrb = this.getArrBuffer();
-    dataView.setUint32(index, arrb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    uint8Array.set(arrb, index);
-    index += arrb.byteLength;
-    index = align4(index);
-  }
-  static deserializeUpdate(doc, uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    // skip method
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
-    index += kpjbLength;
-    index = align4(index);
-
-    const opIndex = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-
-    const arrLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const arrb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, arrLength);
-    const arr = zbdecode(arrb);
-    index += arrLength;
-    index = align4(index);
-    
-    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
-    
-    return new this(
-      impl,
-      keyPath,
-      opIndex,
-      arr
-    );
-  }
-}
-class ZArrayUnshiftEvent extends ZArrayEvent {
-  constructor(impl, keyPath, arr) {
-    super(impl);
-
-    this.keyPath = keyPath;
-    this.arr = arr;
-  }
-  static METHOD = ++zEventsIota;
-  apply() {
-    this.impl.binding.unshift.apply(this.impl.binding, this.arr);
-  }
-  getAction() {
-    return {
-      action: 'add',
-      key: 0,
-    };
-  }
-  computeUpdateByteLength() {
-    let totalSize = 0;
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
-    totalSize += this.getKeyPathBuffer().byteLength; // key path data
-    totalSize = align4(totalSize);
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // arr length
-    totalSize += this.getArrBuffer().byteLength; // arr data
-    totalSize = align4(totalSize);
-    
-    return totalSize;
-  }
-  serializeUpdate(uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    dataView.setUint32(index, this.constructor.METHOD, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = this.getKeyPathBuffer();
-    dataView.setUint32(index, kpjb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    uint8Array.set(kpjb, index);
-    index += kpjb.byteLength;
-    index = align4(index);
-    
-    const arrb = this.getArrBuffer();
-    dataView.setUint32(index, arrb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    uint8Array.set(arrb, index);
-    index += arrb.byteLength;
-    index = align4(index);
-  }
-  static deserializeUpdate(doc, uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    // skip method
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
-    index += kpjbLength;
-    index = align4(index);
-
-    const arrLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const arrb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, arrLength);
-    const arr = zbdecode(arrb);
-    index += arrLength;
-    index = align4(index);
-    
-    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
-    
-    return new this(
-      impl,
-      keyPath,
-      arr
+      keyPath
     );
   }
 }
@@ -958,10 +792,8 @@ const ZEVENT_CONSTRUCTORS = [
   null, // start at 1
   ZMapSetEvent,
   ZMapDeleteEvent,
-  ZArrayInsertEvent,
-  ZArrayDeleteEvent,
   ZArrayPushEvent,
-  ZArrayUnshiftEvent,
+  ZArrayDeleteEvent,
 ];
 
 class ZDoc extends ZEventEmitter {
@@ -973,7 +805,7 @@ class ZDoc extends ZEventEmitter {
     this.history = [];
     this.transactionDepth = 0;
     this.transactionCache = null;
-    this.resolvePriority = Math.round(Math.random() * 0xFFFFFF);
+    this.resolvePriority = _makeId();
     
     this.isZDoc = true;
     
@@ -1008,7 +840,7 @@ class ZDoc extends ZEventEmitter {
     this.resolvePriority = resolvePriority;
   }
   toJSON() {
-    return this.state;
+    return _jsonify(this.state);
   }
   pushTransaction(origin) {
     if (++this.transactionDepth === 1) {
@@ -1037,20 +869,16 @@ class ZDoc extends ZEventEmitter {
           }
         } else if (impl instanceof ZArray) {
           if (impl.length > 0) {
-            const indexes = Array(impl.length);
-            for (let i = 0; i < impl.length; i++) {
-              indexes[i] = i;
-            }
             const e = {
               added: new Set([]),
-              deleted: new Set(indexes),
+              deleted: new Set(impl.binding.e),
               changes: {
-                keys: new Map(indexes.map(index => {
+                keys: new Map(),
+                values: new Map(impl.binding.e.map(e => {
                   return [
-                    index,
+                    e,
                     {
                       action: 'delete',
-                      oldValue: null,
                     },
                   ];
                 })),
@@ -1074,10 +902,10 @@ class ZDoc extends ZEventEmitter {
                     key,
                     {
                       action: 'delete',
-                      oldValue: null,
                     },
                   ];
                 })),
+                values: new Map(),
               },
             };
             impl.triggerObservers(e);
@@ -1102,20 +930,16 @@ class ZDoc extends ZEventEmitter {
           }
         } else if (impl instanceof ZArray) {
           if (impl.length > 0) {
-            const indexes = Array(impl.length);
-            for (let i = 0; i < impl.length; i++) {
-              indexes[i] = i;
-            }
             const e = {
-              added: new Set(indexes),
+              added: new Set(impl.binding.e),
               deleted: new Set([]),
               changes: {
-                keys: new Map(indexes.map(index => {
+                keys: new Map(),
+                values: new Map(impl.binding.e.map(e => {
                   return [
-                    index,
+                    e,
                     {
                       action: 'add',
-                      oldValue: null,
                     },
                   ];
                 })),
@@ -1139,10 +963,10 @@ class ZDoc extends ZEventEmitter {
                     key,
                     {
                       action: 'add',
-                      oldValue: null,
                     },
                   ];
                 })),
+                values: new Map(),
               },
             };
             impl.triggerObservers(e);
@@ -1171,13 +995,22 @@ class ZDoc extends ZEventEmitter {
       };
       const _recurse = (newBinding, keyPath) => {
         const oldBinding = _lookupKeyPath(oldState, keyPath);
+        let oldImpl;
         if (oldBinding !== undefined) {
-          const oldImpl = bindingsMap.get(oldBinding);
+          oldImpl = bindingsMap.get(oldBinding);
           oldImpl.binding = newBinding;
           bindingsMap.set(newBinding, oldImpl);
+        } else {
+          oldImpl = null;
         }
         
-        if (Array.isArray(newBinding)) {
+        if (oldImpl instanceof ZArray) {
+          for (let i = 0; i < newBinding.e.length; i++) {
+            const zid = newBinding.i[i];
+            const index = oldBinding.i.indexOf(zid);
+            _recurse(newBinding.e[i], keyPath.concat(['e', index]));
+          }
+        } else if (Array.isArray(newBinding)) {
           for (let i = 0; i < newBinding.length; i++) {
             _recurse(newBinding[i], keyPath.concat([i]));
           }
@@ -1210,9 +1043,16 @@ class ZDoc extends ZEventEmitter {
         switch (type) {
           case 'a': return impl.get(key, ZArray);
           case 'm': return impl.get(key, ZMap);
-          case 'i': return impl.get(key);
-          case 'k': return impl.get(key);
-          case 'e': return impl.get(key);
+          // case 'i': return impl.get(key);
+          // case 'k': return impl.get(key);
+          case 'e': { // XXX rewrite 'e' lookups to use zid
+            const zid = key;
+            const index = impl.binding.i.indexOf(zid);
+            if (index === -1) {
+              console.warn('failed to look up key path', key, impl.binding.i);
+            }
+            return impl.binding.e[index];
+          }
           case 'v': return impl.get(key);
           default: return null;
         }
@@ -1289,14 +1129,15 @@ class ZObservable {
             console.warn('unknown key type', impl);
           }
         } else if (parentImpl.isZArray) {
-          const index = parentBinding.indexOf(binding);
-          keyPath.push([index, 'i']);
+          const index = parentImpl.binding.e.indexOf(binding);
+          const zid = parentImpl.binding.i[index];
+          keyPath.push([zid, 'e']);
         } else if (parentImpl.isZMap) {
           const keys = Object.keys(parentBinding);
           const matchingKeys = keys.filter(k => parentBinding[k] === binding);
           if (matchingKeys.length === 1) {
             const key = matchingKeys[0];
-            keyPath.push([key, 'k']);
+            keyPath.push([key, 'v']);
           } else {
             console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
           }
@@ -1458,33 +1299,37 @@ class ZArray extends ZObservable {
     
     this.isZArray = true;
   }
-  static nativeConstructor = () => [];
+  static nativeConstructor = () => ({
+    e: [],
+    i: [],
+  });
   get length() {
-    return this.binding.length;
+    return this.binding.e.length;
   }
   set length(length) {
-    this.binding.length = length;
+    this.binding.e.length = length;
   }
   get(index) {
-    return this.binding[index];
+    return this.binding.e[index];
   }
-  insert(index, arr) {
+  push(arr) {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
     
     arr.forEach(e => _ensureImplBound(e, this));
     
+    const zid = _makeId();
+    
     const keyPath = this.getKeyPath();
-    keyPath.push([index, 'e']);
-    const event = new ZArrayInsertEvent(
+    keyPath.push([zid, 'e']);
+    const event = new ZArrayPushEvent(
       this,
       keyPath,
-      index,
       arr
     );
     if (this.doc) {
-      this.doc.pushTransaction(TRANSACTION_TYPES.arrayInsert);
+      this.doc.pushTransaction(TRANSACTION_TYPES.arrayPush);
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -1498,13 +1343,13 @@ class ZArray extends ZObservable {
       throw new Error('only length 1 is supported');
     }
     
+    const zid = this.binding.i[index];
+    
     const keyPath = this.getKeyPath();
-    keyPath.push([index, 'e']);
+    keyPath.push([zid, 'e']);
     const event = new ZArrayDeleteEvent(
       this,
-      keyPath,
-      index,
-      length
+      keyPath
     );
     if (this.doc) {
       this.doc.pushTransaction(TRANSACTION_TYPES.arrayDelete);
@@ -1516,54 +1361,8 @@ class ZArray extends ZObservable {
       this.doc.popTransaction();
     }
   }
-  push(arr) {
-    if (arr.length !== 1) {
-      throw new Error('only length 1 is supported');
-    }
-    
-    arr.forEach(e => _ensureImplBound(e, this));
-    
-    const keyPath = this.getKeyPath();
-    keyPath.push([this.length, 'e']);
-    const event = new ZArrayPushEvent(
-      this,
-      keyPath,
-      this.length,
-      arr
-    );
-    if (this.doc) {
-      this.doc.pushTransaction(TRANSACTION_TYPES.arrayPush);
-      this.doc.transactionCache.pushEvent(event);
-    }
-    event.apply();
-    event.triggerObservers();
-    if (this.doc) {
-      this.doc.popTransaction();
-    }
-  }
-  unshift(arr) {
-    if (arr.length !== 1) {
-      throw new Error('only length 1 is supported');
-    }
-    
-    arr.forEach(e => _ensureImplBound(e, this));
-    
-    const keyPath = this.getKeyPath();
-    keyPath.push([0, 'e']);
-    const event = new ZArrayUnshiftEvent(
-      this,
-      keyPath,
-      arr
-    );
-    if (this.doc) {
-      this.doc.pushTransaction(TRANSACTION_TYPES.arrayUnshift);
-      this.doc.transactionCache.pushEvent(event);
-    }
-    event.apply();
-    event.triggerObservers();
-    if (this.doc) {
-      this.doc.popTransaction();
-    }
+  toJSON() {
+    return this.binding.e.map(_jsonify);
   }
   [Symbol.iterator] = () => {
     let i = 0;
