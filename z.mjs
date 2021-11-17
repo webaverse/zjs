@@ -149,7 +149,7 @@ class TransactionCache {
               _keyPathEquals(historyEvent.keyPath, event.keyPath);
           });
         };
-        const _weAreHigherPriority = () => this.resolvePriority < resolvePriority;
+        const _weAreHigherPriority = () => this.doc.resolvePriority < resolvePriority;
         
         let conflict;
         if (_parentWasSet()) {
