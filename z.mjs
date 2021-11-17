@@ -95,10 +95,11 @@ class ZEventEmitter {
 }
 
 class TransactionCache {
-  constructor(doc, origin, startClock = doc.clock, events = []) {
+  constructor(doc, origin, startClock = doc.clock, resolvePriority = doc.resolvePriority, events = []) {
     this.doc = doc;
     this.origin = origin;
     this.startClock = startClock;
+    this.resolvePriority = resolvePriority;
     this.events = events;
   }
   pushEvent(event) {
@@ -109,13 +110,15 @@ class TransactionCache {
       this.doc,
       this.origin,
       clock,
-      this.events
+      resolvePriority,
+      rebasedEvents
     );
   }
   serializeUpdate() {
     let totalSize = 0;
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // clock
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // resolve priority
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // num events
     const updateByteLengths = this.events.map(event => {
       totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
@@ -133,6 +136,9 @@ class TransactionCache {
     index += Uint32Array.BYTES_PER_ELEMENT;
     
     dataView.setUint32(index, this.startClock, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    dataView.setUint32(index, this.resolvePriority, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
     dataView.setUint32(index, this.events.length, true);
@@ -159,6 +165,9 @@ class TransactionCache {
     const startClock = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
+    const resolvePriority = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
     const numEvents = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     const events = Array(numEvents);
@@ -173,7 +182,7 @@ class TransactionCache {
       index = align4(index);
     }
     
-    const transactionCache = new TransactionCache(doc, undefined, startClock, events);
+    const transactionCache = new TransactionCache(doc, undefined, startClock, resolvePriority, events);
     return transactionCache;
   }
 }
@@ -822,6 +831,7 @@ class ZDoc extends ZEventEmitter {
     this.history = [];
     this.transactionDepth = 0;
     this.transactionCache = null;
+    this.resolvePriority = Math.round(Math.random() * 0xFFFFFF);
     
     this.isZDoc = true;
     
@@ -851,6 +861,9 @@ class ZDoc extends ZEventEmitter {
     this.pushTransaction(origin);
     fn();
     this.popTransaction();
+  }
+  setResolvePriority(resolvePriority) {
+    this.resolvePriority = resolvePriority;
   }
   toJSON() {
     return this.state;
