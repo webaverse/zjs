@@ -316,7 +316,7 @@ describe('sync', function() {
       }
     });
   });
-  describe('transactions', function() {
+  describe('basic transactions', function() {
     it('array push', function() {
       const doc1 = new Z.Doc();
       const array1 = doc1.getArray('array');
@@ -383,6 +383,42 @@ describe('sync', function() {
       });
       assert.deepEqual(map1.toJSON(), {});
       assert.deepEqual(map2.toJSON(), {});
+    });
+  });
+  describe('non-conflicting transactions', function() {
+    it('array + map', function() {
+      const doc1 = new Z.Doc();
+      const array1 = doc1.getArray('array');
+      const map1 = doc1.getMap('map');
+      
+      const doc2 = new Z.Doc();
+      const array2 = doc2.getArray('array');
+      const map2 = doc2.getMap('map');
+      
+      const doc3 = new Z.Doc();
+      const array3 = doc3.getArray('array');
+      const map3 = doc3.getMap('map');
+      
+      let doc1Update;
+      doc1.on('update', (uint8Array, origin, doc, transaction) => {
+        doc1Update = uint8Array;
+      });
+      let doc2Update;
+      doc2.on('update', (uint8Array, origin, doc, transaction) => {
+        doc2Update = uint8Array;
+      });
+      doc1.transact(() => {
+        array1.push(['lol']);
+      });
+      doc2.transact(() => {
+        map2.set('lol', 'zol');
+      });
+      
+      Z.applyUpdate(doc3, doc1Update);
+      Z.applyUpdate(doc3, doc2Update);
+      
+      assert.deepEqual(array3.toJSON(), ['lol']);
+      assert.deepEqual(map3.toJSON(), {lol: 'zol'});
     });
   });
 });
