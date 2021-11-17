@@ -407,6 +407,16 @@ describe('sync', function() {
       doc2.on('update', (uint8Array, origin, doc, transaction) => {
         doc2Update = uint8Array;
       });
+      doc3.on('update', (uint8Array, origin, doc, transaction) => {
+        if (origin === 'doc1') {
+          Z.applyUpdate(doc2, uint8Array);
+        } else if (oritin === 'doc2') {
+          Z.applyUpdate(doc1, uint8Array);
+        } else {
+          throw new Error('fail');
+        }
+      });
+      
       doc1.transact(() => {
         array1.push(['lol']);
       });
@@ -414,11 +424,15 @@ describe('sync', function() {
         map2.set('lol', 'zol');
       });
       
-      Z.applyUpdate(doc3, doc1Update);
-      Z.applyUpdate(doc3, doc2Update);
+      Z.applyUpdate(doc3, doc1Update, 'doc1');
+      Z.applyUpdate(doc3, doc2Update, 'doc2');
       
       assert.deepEqual(array3.toJSON(), ['lol']);
       assert.deepEqual(map3.toJSON(), {lol: 'zol'});
+      assert.deepEqual(array1.toJSON(), ['lol']);
+      assert.deepEqual(map1.toJSON(), {lol: 'zol'});
+      assert.deepEqual(array2.toJSON(), ['lol']);
+      assert.deepEqual(map2.toJSON(), {lol: 'zol'});
     });
   });
 });
