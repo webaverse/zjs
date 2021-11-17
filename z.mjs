@@ -112,12 +112,9 @@ class ZEventEmitter {
 }
 
 class TransactionCache {
-  constructor(doc, origin = '', startClock = doc.clock, resolvePriority = doc.resolvePriority, events = []) {
+  constructor(doc, origin, startClock = doc.clock, resolvePriority = doc.resolvePriority, events = []) {
     this.doc = doc;
     this.origin = origin;
-    if (typeof origin === 'symbol') {
-      throw new Error('lol');
-    }
     this.startClock = startClock;
     this.resolvePriority = resolvePriority;
     this.events = events;
@@ -184,18 +181,9 @@ class TransactionCache {
       rebasedEvents
     );
   }
-  serializeUpdate() {
-    const {read: obr, written: obl} = textEncoder.encodeInto(this.origin, textUint8Array);
-    if (obr !== this.origin.length) {
-      throw new Error('buffer overflow');
-    }
-    const ob = new Uint8Array(textUint8Array.buffer, textUint8Array.byteOffset, obl);
-    
+  serializeUpdate() {    
     let totalSize = 0;
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // origin length
-    totalSize += ob.byteLength; // origin data
-    totalSize = align4(totalSize);
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // clock
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // resolve priority
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // num events
@@ -213,13 +201,6 @@ class TransactionCache {
     
     dataView.setUint32(index, MESSAGES.TRANSACTION, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    dataView.setUint32(index, ob.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    uint8Array.set(ob, index);
-    index += ob.byteLength;
-    index = align4(index);
     
     // XXX setBigUint64
     dataView.setUint32(index, this.startClock, true);
@@ -249,14 +230,6 @@ class TransactionCache {
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
     
-    const originLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const originBuffer = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, originLength);
-    const origin = textDecoder.decode(originBuffer);
-    index += originLength;
-    index = align4(index);
-    
     const startClock = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     
@@ -277,7 +250,7 @@ class TransactionCache {
       index = align4(index);
     }
     
-    const transactionCache = new TransactionCache(doc, origin, startClock, resolvePriority, events);
+    const transactionCache = new TransactionCache(doc, undefined, startClock, resolvePriority, events);
     return transactionCache;
   }
 }
@@ -1422,6 +1395,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
   };
   const _handleTransactionMessage = () => {
     let transactionCache = TransactionCache.deserializeUpdate(doc, uint8Array);
+    transactionCache.origin = transactionOrigin;
     
     // rebase on top of local history as needed
     if (transactionCache.startClock === doc.clock) {
