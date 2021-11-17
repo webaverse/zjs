@@ -22,9 +22,9 @@ export const TRANSACTION_TYPES = {
 const _makeId = () => Math.round(Math.random() * 0xFFFFFF);
 const _jsonify = o => {
   const impl = bindingsMap.get(o);
-  if (impl instanceof ZArray) { // XXX would probably be faster with .isZArray
+  if (impl?.isZArray) {
     return o.e.map(_jsonify);
-  } else if (Array.isArray(o)) {
+  } else if (Array?.isArray(o)) {
     return o.map(_jsonify);
   } else if (o !== null && typeof o === 'object') {
     const result = {};
@@ -142,17 +142,17 @@ const _isKeyPathPrefix = (a, b) => {
 const _parentWasSet = (event, historyTail) => historyTail.some(historyEvent => {
   return _isKeyPathPrefix(historyEvent.keyPath, event.keyPath) &&
     (
-      (historyEvent instanceof ZMapSetEvent) ||
-      (historyEvent instanceof ZMapDeleteEvent) ||
-      (historyEvent instanceof ZArrayDeleteEvent)
+      (historyEvent.isZMapSetEvent) ||
+      (historyEvent.isZMapDeleteEvent) ||
+      (historyEvent.isZArrayDeleteEvent)
     );
 });
 const _getConflict = (event, historyTail) => historyTail.find(historyEvent => {
-  return ((historyEvent instanceof ZMapSetEvent) || (historyEvent instanceof ZMapDeleteEvent)) &&
+  return ((historyEvent.isZMapSetEvent) || (historyEvent.isZMapDeleteEvent)) &&
     _keyPathEquals(historyEvent.keyPath, event.keyPath);
 });
 const _alreadyDeleted = (event, historyTail) => historyTail.some(historyEvent => {
-  return (historyEvent instanceof ZArrayDeleteEvent) &&
+  return (historyEvent.isZArrayDeleteEvent) &&
     _keyPathEquals(historyEvent.keyPath, event.keyPath);
 });
 class TransactionCache {
@@ -168,7 +168,7 @@ class TransactionCache {
   }
   rebase(historyTail) {
     const rebasedEvents = this.events.map(event => {
-      if ((event instanceof ZMapSetEvent) || (event instanceof ZMapDeleteEvent)) {        
+      if ((event.isZMapSetEvent) || (event.isZMapDeleteEvent)) {        
         let conflict;
         if (_parentWasSet(event, historyTail)) {
           // torpedo this event
@@ -198,14 +198,14 @@ class TransactionCache {
           // no conflicts
           return event;
         }
-      } else if (event instanceof ZArrayPushEvent) {
+      } else if (event.isZArrayPushEvent) {
         if (_parentWasSet(event, historyTail)) {
           return new ZNullEvent();
         } else {
           // no conflicts
           return event;
         }
-      } else if (event instanceof ZArrayDeleteEvent) {
+      } else if (EventDispatcher.isZArrayDeleteEvent) {
         if (_parentWasSet(event, historyTail) || _alreadyDeleted(event, historyTail)) {
           // torpedo this event
           return new ZNullEvent();
@@ -213,7 +213,7 @@ class TransactionCache {
           // no conflicts
           return event;
         }
-      } else if (event instanceof ZNullEvent) {
+      } else if (event.isZNullEvent) {
         // we don't have to do anything :)
         return event;
       } else {
@@ -375,6 +375,8 @@ class ZMapEvent extends ZEvent {
   
     this.keyBuffer = null;
     this.valueBuffer = null;
+    
+    this.isZMapEvent = true;
   }
   getKeyBuffer() {
     if (this.keyBuffer === null) {
@@ -392,6 +394,8 @@ class ZMapEvent extends ZEvent {
 class ZNullEvent extends ZEvent {
   constructor() {
     super();
+    
+    this.isZNullEvent = true;
   }
   static METHOD = ++zEventsIota;
   apply() {
@@ -422,6 +426,8 @@ class ZArrayEvent extends ZEvent {
     super(impl, keyPath);
     
     this.arrBuffer = null;
+    
+    this.isZArrayEvent = true;
   }
   getArrBuffer() {
     if (this.arrBuffer === null) {
@@ -436,6 +442,8 @@ class ZMapSetEvent extends ZMapEvent {
     
     this.key = key;
     this.value = value;
+    
+    this.isZMapSetEvent = true;
   }
   static METHOD = ++zEventsIota;
   apply() {
@@ -538,6 +546,8 @@ class ZMapDeleteEvent extends ZMapEvent {
 
     this.keyPath = keyPath;
     this.key = key;
+    
+    this.isZMapDeleteEvent = true;
   }
   static METHOD = ++zEventsIota;
   apply() {
@@ -621,6 +631,8 @@ class ZArrayPushEvent extends ZArrayEvent {
 
     this.keyPath = keyPath;
     this.arr = arr;
+    
+    this.isZArrayPushEvent = true;
   }
   static METHOD = ++zEventsIota;
   apply() {
@@ -709,6 +721,8 @@ class ZArrayDeleteEvent extends ZArrayEvent {
 
     this.keyPath = keyPath;
     this.oldValue = null;
+    
+    this.isZArrayDeleteEvent = true;
   }
   static METHOD = ++zEventsIota;
   apply() {
@@ -849,11 +863,11 @@ class ZDoc extends ZEventEmitter {
       const _recurse = binding => {
         const impl = bindingsMap.get(binding);
         
-        if (impl instanceof ZDoc) {
+        if (impl.isZDoc) {
           for (const k in impl.state) {
             _recurse(impl.state[k]);
           }
-        } else if (impl instanceof ZArray) {
+        } else if (impl.isZArray) {
           if (impl.length > 0) {
             const e = {
               added: new Set([]),
@@ -876,7 +890,7 @@ class ZDoc extends ZEventEmitter {
           for (let i = 0; i < impl.binding.length; i++) {
             _recurse(impl.binding[i]);
           }
-        } else if (impl instanceof ZMap) {
+        } else if (impl.isZMap) {
           const keys = Array.from(impl.keys());
           if (keys.length > 0) {
             const e = {
@@ -910,11 +924,11 @@ class ZDoc extends ZEventEmitter {
       const _recurse = binding => {
         const impl = bindingsMap.get(binding);
         
-        if (impl instanceof ZDoc) {
+        if (impl?.isZDoc) {
           for (const k in impl.state) {
             _recurse(impl.state[k]);
           }
-        } else if (impl instanceof ZArray) {
+        } else if (impl?.isZArray) {
           if (impl.length > 0) {
             const e = {
               added: new Set(impl.binding.e),
@@ -937,7 +951,7 @@ class ZDoc extends ZEventEmitter {
           for (let i = 0; i < impl.binding.length; i++) {
             _recurse(impl.binding[i]);
           }
-        } else if (impl instanceof ZMap) {
+        } else if (impl?.isZMap) {
           const keys = Array.from(impl.keys());
           if (keys.length > 0) {
             const e = {
@@ -988,7 +1002,7 @@ class ZDoc extends ZEventEmitter {
           bindingsMap.set(newBinding, oldImpl);
         }
         
-        if (oldImpl instanceof ZArray) {
+        if (oldImpl?.isZArray) {
           for (let i = 0; i < newBinding.e.length; i++) {
             const zid = newBinding.i[i];
             const index = oldBinding.i.indexOf(zid);
@@ -1137,8 +1151,8 @@ class ZObservable {
 
 const _ensureImplBound = (v, parent) => {
   if (
-    v instanceof ZMap ||
-    v instanceof ZArray
+    v.isZMap ||
+    v.isZArray
   ) {
     const impl = bindingsMap.get(v.binding);
     if (!impl) {
