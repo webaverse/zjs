@@ -47,6 +47,14 @@ const _jsonify = o => {
     return o;
   }
 };
+const _getBindingForValue = e => {
+  if (e.isZMap || e.isZArray) {
+    return e.binding;
+  } else {
+    return e;
+  }
+};
+const _getBindingForArray = arr => arr.map(_getBindingForValue);
 
 /* const _parseKey = s => {
   const match = s.match(/^([\s\S]*?)(?::[\s\S])?$/);
@@ -397,7 +405,7 @@ class ZMapEvent extends ZEvent {
   }
   getValueBuffer() {
     if (this.valueBuffer === null) {
-      this.valueBuffer = zbencode(this.value);
+      this.valueBuffer = zbencode(_getBindingForValue(this.value));
     }
     return this.valueBuffer;
   }
@@ -442,7 +450,7 @@ class ZArrayEvent extends ZEvent {
   }
   getArrBuffer() {
     if (this.arrBuffer === null) {
-      this.arrBuffer = zbencode(this.arr);
+      this.arrBuffer = zbencode(_getBindingForArray(this.arr));
     }
     return this.arrBuffer;
   }
@@ -458,7 +466,8 @@ class ZMapSetEvent extends ZMapEvent {
   }
   static METHOD = ++zEventsIota;
   apply() {
-    this.impl.binding[this.key] = this.value;
+    const valueBinding = _getBindingForValue(this.value);
+    this.impl.binding[this.key] = valueBinding;
   }
   getAction() {
     return {
@@ -647,14 +656,7 @@ class ZArrayPushEvent extends ZArrayEvent {
   }
   static METHOD = ++zEventsIota;
   apply() {
-    const arrBinding = this.arr.map(e => {
-      if (e.isZMap) {
-        return e.binding;
-      } else {
-        return e;
-      }
-    });
-
+    const arrBinding = _getBindingForArray(this.arr);
     this.impl.binding.e.push.apply(this.impl.binding.e, arrBinding);
     const zid = this.keyPath[this.keyPath.length - 1][0];
     this.impl.binding.i.push(zid);
