@@ -24,7 +24,7 @@ const _jsonify = o => {
   const impl = bindingsMap.get(o);
   if (impl?.isZArray) {
     return o.e.map(_jsonify);
-  } else if (Array?.isArray(o)) {
+  } else if (Array.isArray(o)) {
     return o.map(_jsonify);
   } else if (o !== null && typeof o === 'object') {
     const result = {};
