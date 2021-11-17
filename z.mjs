@@ -1074,9 +1074,9 @@ class ZDoc extends ZEventEmitter {
           case 'e': {
             const zid = key;
             const index = impl.binding.i.indexOf(zid);
-            if (index === -1) {
+            /* if (index === -1) {
               console.warn('failed to look up key path', key, impl.binding.i);
-            }
+            } */
             return impl.binding.e[index];
           }
           case 'v': return impl.get(key);
