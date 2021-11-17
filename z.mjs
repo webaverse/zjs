@@ -179,14 +179,14 @@ class TransactionCache {
   }
   rebase(historyTail) {
     const rebasedEvents = this.events.map(event => {
-      if ((event.isZMapSetEvent) || (event.isZMapDeleteEvent)) {        
+      if (event.isZMapSetEvent || event.isZMapDeleteEvent) {
         let conflict;
         if (_parentWasSet(event, historyTail)) {
-          // torpedo this event
+          // console.log('torpedo self due to parent conflict');
           return new ZNullEvent();
         } else if (conflict = _getConflict(event, historyTail)) {
           if (this.resolvePriority < this.doc.resolvePriority) {
-            // if we are higher priority, torpedo them and use our value
+            // console.log('torpedo remote due to high prio');
             while (conflict) {
               const nullEvent = new ZNullEvent();
               {
@@ -202,30 +202,30 @@ class TransactionCache {
             
             return event;
           } else {
-            // if we are lower priority, use their value
+            // console.log('torpedo self due to low prio');
             return new ZNullEvent();
           }
         } else {
-          // no conflicts
+          // console.log('no conflicts');
           return event;
         }
       } else if (event.isZArrayPushEvent) {
         if (_parentWasSet(event, historyTail)) {
           return new ZNullEvent();
         } else {
-          // no conflicts
+          // console.log('no conflicts');
           return event;
         }
       } else if (event.isZArrayDeleteEvent) {
         if (_parentWasSet(event, historyTail) || _alreadyDeleted(event, historyTail)) {
-          // torpedo this event
+          // console.log('torpedo self due to parent conflict');
           return new ZNullEvent();
         } else {
-          // no conflicts
+          // console.log('no conflicts');
           return event;
         }
       } else if (event.isZNullEvent) {
-        // we don't have to do anything :)
+        // console.log('skip null event');
         return event;
       } else {
         console.warn('unknown event type', event);
