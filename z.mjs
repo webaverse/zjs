@@ -140,6 +140,7 @@ class TransactionCache {
     const rebasedEvents = this.events.map(event => {
       if (event instanceof ZMapSetEvent || event instanceof ZMapDeleteEvent) {
         const _parentWasSet = () => {
+          // XXX
           return false;
         };
         const _getConflict = () => {
@@ -175,26 +176,40 @@ class TransactionCache {
             return new ZNullEvent();
           }
         } else {
-          // no conflicts; let it through
+          // no conflicts
           return event;
         }
-      } else if (
-        event instanceof ZArrayPushEvent ||
-        event instanceof ZNullEvent
-      ) {
-        // we don't have to do anything :)
-        return event;
+      } else if (event instanceof ZArrayPushEvent) {
+        const _parentWasSet = () => {
+          // XXX
+          return false;
+        };
+        
+        if (_parentWasSet()) {
+          return new ZNullEvent();
+        } else {
+          // no conflicts
+          return event;
+        }
       } else if (event instanceof ZArrayDeleteEvent) {
+        const _parentWasSet = () => {
+          // XXX
+          return false;
+        };
         const _alreadyDeleted = () => historyTail.some(historyEvent => {
           return (historyEvent instanceof ZArrayDeleteEvent) &&
             _keyPathEquals(historyEvent.keyPath, event.keyPath);
         });
-        if (_alreadyDeleted()) {
+        if (_parentWasSet() || _alreadyDeleted()) {
           // torpedo this event
           return new ZNullEvent();
         } else {
+          // no conflicts
           return event;
         }
+      } else if (event instanceof ZNullEvent) {
+        // we don't have to do anything :)
+        return event;
       } else {
         console.warn('unknown event type', event);
         return event;
