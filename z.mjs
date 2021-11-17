@@ -12,6 +12,7 @@ const MESSAGES = (() => {
   };
 })();
 export const TRANSACTION_TYPES = {
+  null: Symbol('null'),
   mapSet: Symbol('mapSet'),
   mapDelete: Symbol('mapDelete'),
   arrayPush: Symbol('arrayPush'),
@@ -315,41 +316,48 @@ class ZEvent {
   }
   getEvent() {
     const actionSpec = this.getAction();
-    if (actionSpec.key) {
-      return {
-        added: new Set(actionSpec.action === 'add' ? [actionSpec.key] : []),
-        deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
-        changes: {
-          keys: new Map([[
-            actionSpec.key,
-            {
-              action: actionSpec.action,
-            },
-          ]]),
-          values: new Map(),
-        },
-      };
-    } else if (actionSpec.value) {
-      return {
-        added: new Set(actionSpec.action === 'add' ? [actionSpec.value] : []),
-        deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.value] : []),
-        changes: {
-          keys: new Map(),
-          values: new Map([[
-            actionSpec.value,
-            {
-              action: actionSpec.action,
-            },
-          ]]),
-        },
-      };
+    if (actionSpec) {
+      if (actionSpec.key) {
+        return {
+          added: new Set(actionSpec.action === 'add' ? [actionSpec.key] : []),
+          deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
+          changes: {
+            keys: new Map([[
+              actionSpec.key,
+              {
+                action: actionSpec.action,
+              },
+            ]]),
+            values: new Map(),
+          },
+        };
+      } else if (actionSpec.value) {
+        return {
+          added: new Set(actionSpec.action === 'add' ? [actionSpec.value] : []),
+          deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.value] : []),
+          changes: {
+            keys: new Map(),
+            values: new Map([[
+              actionSpec.value,
+              {
+                action: actionSpec.action,
+              },
+            ]]),
+          },
+        };
+      } else {
+        console.warn('unknown action spec format', actionSpec, new Error().stack);
+        return null;
+      }
     } else {
       return null;
     }
   }
   triggerObservers() {
     const e = this.getEvent();
-    this.impl.triggerObservers(e);
+    if (e !== null) {
+      this.impl.triggerObservers(e);
+    }
   }
   getKeyPathBuffer() {
     if (this.keyPathBuffer === null) {
@@ -389,98 +397,34 @@ class ZMapEvent extends ZEvent {
     return this.valueBuffer;
   }
 }
-/* class ZNullEvent extends ZEvent {
+class ZNullEvent extends ZEvent {
   constructor() {
     super();
   }
+  static METHOD = ++zEventsIota;
+  apply() {
+    // nothing
+  }
+  getAction() {
+    return null;
+  }
   computeUpdateByteLength() {
-    // XXX
     let totalSize = 0;
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
-    totalSize += this.getKeyPathBuffer().byteLength; // key path data
-    totalSize = align4(totalSize);
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
-    totalSize += this.getKeyBuffer().byteLength; // key data
-    totalSize = align4(totalSize);
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // value length
-    totalSize += this.getValueBuffer().byteLength; // value data
-    totalSize = align4(totalSize);
     
     return totalSize;
   }
   serializeUpdate(uint8Array) {
-    // XXX
     const dataView = _makeDataView(uint8Array);
     
     let index = 0;
     dataView.setUint32(index, this.constructor.METHOD, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = this.getKeyPathBuffer();
-    dataView.setUint32(index, kpjb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(kpjb, index);
-    index += kpjb.byteLength;
-    index = align4(index);
-    
-    const kb = this.getKeyBuffer();
-    dataView.setUint32(index, kb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(kb, index);
-    index += kb.byteLength;
-    index = align4(index);
-    
-    const vb = this.getValueBuffer();
-    dataView.setUint32(index, vb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(vb, index);
-    index += vb.byteLength;
-    index = align4(index);
   }
   static deserializeUpdate(doc, uint8Array) {
-    // XXX
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    // skip method
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
-    index += kpjbLength;
-    index = align4(index);
-
-    const kbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    const kb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kbLength);
-    const key = textDecoder.decode(kb);
-    index += kbLength;
-    index = align4(index);
-
-    const vbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    const vb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, vbLength);
-    const value = zbdecode(vb);
-    index += vbLength;
-    index = align4(index);
-    
-    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
-    
-    return new this(
-      impl,
-      keyPath,
-      key,
-      value
-    );
+    return new this();
   }
-} */
+}
 class ZArrayEvent extends ZEvent {
   constructor(impl, keyPath) {
     super(impl, keyPath);
@@ -772,21 +716,19 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     super(impl);
 
     this.keyPath = keyPath;
-    const zid = this.keyPath[this.keyPath.length - 1][0];
-    const index = this.impl.binding.i.indexOf(zid);
-    this.value = this.impl.binding.e[index];
+    this.oldValue = null;
   }
   static METHOD = ++zEventsIota;
   apply() {
     const zid = this.keyPath[this.keyPath.length - 1][0];
     const index = this.impl.binding.i.indexOf(zid);
-    this.impl.binding.e.splice(index, 1);
+    this.oldValue = this.impl.binding.e.splice(index, 1)[0];
     this.impl.binding.i.splice(index, 1);
   }
   getAction() {
     return {
       action: 'delete',
-      value: this.value,
+      value: this.oldValue,
     };
   }
   computeUpdateByteLength() {
@@ -841,6 +783,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
 }
 const ZEVENT_CONSTRUCTORS = [
   null, // start at 1
+  ZNullEvent,
   ZMapSetEvent,
   ZMapDeleteEvent,
   ZArrayPushEvent,
