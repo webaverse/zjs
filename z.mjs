@@ -205,7 +205,7 @@ class TransactionCache {
           // no conflicts
           return event;
         }
-      } else if (EventDispatcher.isZArrayDeleteEvent) {
+      } else if (event.isZArrayDeleteEvent) {
         if (_parentWasSet(event, historyTail) || _alreadyDeleted(event, historyTail)) {
           // torpedo this event
           return new ZNullEvent();
