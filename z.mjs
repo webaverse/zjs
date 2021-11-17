@@ -1079,7 +1079,7 @@ class ZDoc extends ZEventEmitter {
         impl = child;
         binding = child.binding ?? null;
       } else {
-        console.warn('could not look up key path', key, impl);
+        // console.warn('could not look up key path', [key, type], impl);
         return null;
       }
     }
