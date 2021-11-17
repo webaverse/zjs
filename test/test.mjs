@@ -149,7 +149,7 @@ describe('api limits', function() {
 });
 
 describe('complex data', function() {
-  it('mixed', function() {
+  it('mixed map array', function() {
     const doc = new Z.Doc();
     const array = doc.getArray('array');
     const map = doc.getMap('map');
