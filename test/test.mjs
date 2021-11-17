@@ -505,7 +505,7 @@ describe('sync', function() {
 
       assert.deepEqual(array3.toJSON(), [2]);
     });
-    it('conflicting array push delete', () => {
+    it('conflicting array delete same', () => {
       const doc1 = new Z.Doc();
       doc1.setResolvePriority(1);
       const array1 = doc1.getArray('array');
@@ -524,6 +524,7 @@ describe('sync', function() {
       // initialize
       {
         array1.push([1]);
+        array1.push([2]);
         const uint8Array = Z.encodeStateAsUpdate(doc1);
         Z.applyUpdate(doc2, uint8Array);
         Z.applyUpdate(doc3, uint8Array);
@@ -543,7 +544,7 @@ describe('sync', function() {
       });
 
       doc1.transact(() => {
-        array1.push([2]);
+        array1.delete(0);
       }, 'doc1');
       doc2.transact(() => {
         array2.delete(0);
