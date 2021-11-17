@@ -1430,6 +1430,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
       const historyTail = doc.history.slice(doc.history.length - (doc.clock - transactionCache.startClock));
       transactionCache.rebase(historyTail);
     } else {
+      console.warn('transaction skipped clock ticks; desynced', [transactionCache.startClock, doc.clock]);
       throw new Error('transaction skipped clock ticks; desynced');
     }
     
