@@ -26,6 +26,17 @@ const _jsonify = o => {
     return o.e.map(_jsonify);
   } else if (Array.isArray(o)) {
     return o.map(_jsonify);
+  } else if (
+    o instanceof Uint8Array ||
+    o instanceof Uint16Array ||
+    o instanceof Uint32Array ||
+    o instanceof Int8Array ||
+    o instanceof Int16Array ||
+    o instanceof Int32Array ||
+    o instanceof Float32Array ||
+    o instanceof Float64Array
+  ) {
+    return o;
   } else if (o !== null && typeof o === 'object') {
     const result = {};
     for (const k in o) {
