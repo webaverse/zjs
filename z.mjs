@@ -125,6 +125,36 @@ const _keyPathEquals = (a, b) => {
     return false;
   }
 };
+const _isKeyPathPrefix = (a, b) => {
+  if (a.length < b.length) {
+    for (let i = 0; i < a.length; i++) {
+      const ae = a[i];
+      const be = b[i];
+      if (ae[0] !== be[0] || ae[1] !== be[1]) {
+        return false;
+      }
+    }
+    return true;
+  } else {
+    return false;
+  }
+};
+const _parentWasSet = (event, historyTail) => historyTail.some(historyEvent => {
+  return _isKeyPathPrefix(historyEvent.keyPath, event.keyPath) &&
+    (
+      (historyEvent instanceof ZMapSetEvent) ||
+      (historyEvent instanceof ZMapDeleteEvent) ||
+      (historyEvent instanceof ZArrayDeleteEvent)
+    );
+});
+const _getConflict = (event, historyTail) => historyTail.find(historyEvent => {
+  return ((historyEvent instanceof ZMapSetEvent) || (historyEvent instanceof ZMapDeleteEvent)) &&
+    _keyPathEquals(historyEvent.keyPath, event.keyPath);
+});
+const _alreadyDeleted = (event, historyTail) => historyTail.some(historyEvent => {
+  return (historyEvent instanceof ZArrayDeleteEvent) &&
+    _keyPathEquals(historyEvent.keyPath, event.keyPath);
+});
 class TransactionCache {
   constructor(doc, origin, startClock = doc.clock, resolvePriority = doc.resolvePriority, events = []) {
     this.doc = doc;
@@ -138,25 +168,14 @@ class TransactionCache {
   }
   rebase(clock, resolvePriority, historyTail) {
     const rebasedEvents = this.events.map(event => {
-      if (event instanceof ZMapSetEvent || event instanceof ZMapDeleteEvent) {
-        const _parentWasSet = () => {
-          // XXX
-          return false;
-        };
-        const _getConflict = () => {
-          return historyTail.find(historyEvent => {
-            return (historyEvent instanceof ZMapSetEvent || historyEvent instanceof ZMapDeleteEvent) &&
-              _keyPathEquals(historyEvent.keyPath, event.keyPath);
-          });
-        };
-        const _weAreHigherPriority = () => this.doc.resolvePriority < resolvePriority;
-        
+      if ((event instanceof ZMapSetEvent) || (event instanceof ZMapDeleteEvent)) {        
         let conflict;
-        if (_parentWasSet()) {
+        if (_parentWasSet(event, historyTail)) {
           // torpedo this event
           return new ZNullEvent();
-        } else if (conflict = _getConflict()) {
-          if (_weAreHigherPriority()) {
+        } else if (conflict = _getConflict(event, historyTail)) {
+          // if we are higher priority
+          if (this.doc.resolvePriority < resolvePriority) {
             while (conflict) {
               const nullEvent = new ZNullEvent();
               {
@@ -167,7 +186,7 @@ class TransactionCache {
                 const index = this.history.indexOf(conflict);
                 this.history.splice(index, 1, nullEvent);
               }
-              conflict = _getConflict();
+              conflict = _getConflict(event, historyTail);
             }
             
             return event;
@@ -180,27 +199,14 @@ class TransactionCache {
           return event;
         }
       } else if (event instanceof ZArrayPushEvent) {
-        const _parentWasSet = () => {
-          // XXX
-          return false;
-        };
-        
-        if (_parentWasSet()) {
+        if (_parentWasSet(event, historyTail)) {
           return new ZNullEvent();
         } else {
           // no conflicts
           return event;
         }
       } else if (event instanceof ZArrayDeleteEvent) {
-        const _parentWasSet = () => {
-          // XXX
-          return false;
-        };
-        const _alreadyDeleted = () => historyTail.some(historyEvent => {
-          return (historyEvent instanceof ZArrayDeleteEvent) &&
-            _keyPathEquals(historyEvent.keyPath, event.keyPath);
-        });
-        if (_parentWasSet() || _alreadyDeleted()) {
+        if (_parentWasSet(event, historyTail) || _alreadyDeleted(event, historyTail)) {
           // torpedo this event
           return new ZNullEvent();
         } else {
