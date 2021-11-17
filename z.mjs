@@ -636,7 +636,15 @@ class ZArrayPushEvent extends ZArrayEvent {
   }
   static METHOD = ++zEventsIota;
   apply() {
-    this.impl.binding.e.push.apply(this.impl.binding.e, this.arr);
+    const arrBinding = this.arr.map(e => {
+      if (e.isZMap) {
+        return e.binding;
+      } else {
+        return e;
+      }
+    });
+
+    this.impl.binding.e.push.apply(this.impl.binding.e, arrBinding);
     const zid = this.keyPath[this.keyPath.length - 1][0];
     this.impl.binding.i.push(zid);
   }
