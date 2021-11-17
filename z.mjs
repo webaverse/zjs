@@ -11,7 +11,7 @@ const MESSAGES = (() => {
     TRANSACTION: ++iota,
   };
 })();
-const TRANSACTION_TYPES = {
+export const TRANSACTION_TYPES = {
   mapSet: Symbol('mapSet'),
   mapDelete: Symbol('mapDelete'),
   arrayPush: Symbol('arrayPush'),
