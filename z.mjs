@@ -1043,9 +1043,7 @@ class ZDoc extends ZEventEmitter {
         switch (type) {
           case 'a': return impl.get(key, ZArray);
           case 'm': return impl.get(key, ZMap);
-          // case 'i': return impl.get(key);
-          // case 'k': return impl.get(key);
-          case 'e': { // XXX rewrite 'e' lookups to use zid
+          case 'e': {
             const zid = key;
             const index = impl.binding.i.indexOf(zid);
             if (index === -1) {
