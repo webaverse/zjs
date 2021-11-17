@@ -174,8 +174,8 @@ class TransactionCache {
           // torpedo this event
           return new ZNullEvent();
         } else if (conflict = _getConflict(event, historyTail)) {
-          // if we are higher priority
           if (this.doc.resolvePriority < resolvePriority) {
+            // if we are higher priority, torpedo them and use our value
             while (conflict) {
               const nullEvent = new ZNullEvent();
               {
@@ -191,7 +191,7 @@ class TransactionCache {
             
             return event;
           } else {
-            // use their value
+            // if we are lower priority, use their value
             return new ZNullEvent();
           }
         } else {
