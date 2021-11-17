@@ -18,7 +18,6 @@ export const TRANSACTION_TYPES = {
   arrayPush: Symbol('arrayPush'),
   arrayRemove: Symbol('arrayRemove'),
 };
-const textUint8Array = new Uint8Array(4096);
 
 const _makeId = () => Math.round(Math.random() * 0xFFFFFF);
 const _jsonify = o => {
