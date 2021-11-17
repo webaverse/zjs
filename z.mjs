@@ -1142,7 +1142,7 @@ class ZObservable {
         } else {
           console.log('failed to find binding getting key path', binding);
         }
-        binding = parentImpl;
+        binding = parentBinding;
       } else {
         break;
       }
