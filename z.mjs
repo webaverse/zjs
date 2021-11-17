@@ -12,10 +12,10 @@ const MESSAGES = (() => {
   };
 })();
 const TRANSACTION_TYPES = {
-  mapSet: 'mapSet',
-  mapDelete: 'mapDelete',
-  arrayPush: 'arrayPush',
-  arrayRemove: 'arrayRemove',
+  mapSet: Symbol('mapSet'),
+  mapDelete: Symbol('mapDelete'),
+  arrayPush: Symbol('arrayPush'),
+  arrayRemove: Symbol('arrayRemove'),
 };
 const textUint8Array = new Uint8Array(4096);
 
