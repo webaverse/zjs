@@ -105,7 +105,57 @@ class TransactionCache {
   pushEvent(event) {
     this.events.push(event);
   }
-  rebase(clock, historyTail) {
+  rebase(clock, resolvePriority, historyTail) {
+    /* const rebasedEvents = this.events.map(event => {
+      if (event instanceof ZMapSetEvent || event instanceof ZMapDeleteEvent) {
+        const _parentWasSet = () => false;
+        const _weAreHighestPriority = () => false;
+        if (_parentWasSet()) {
+          // torpedo this event
+          return new ZNullEvent();
+        } else if (_selfWasSet()) => {
+          if (_weAreHighestPriority()) {
+            // use our value
+            // XXX splice them from history tail
+          } else {
+            // use their value
+            return new ZNullEvent();
+          }
+        }
+      } else if (event instanceof ZArrayPushEvent) {
+        const preArrayEvents = [];
+        for (const preArrayEvent of preArrayEvents) {
+          // advance our key path by 1
+        }
+      } else if (
+        event instanceof ZArrayUnshiftEvent ||
+        event instanceof ZNullEvent
+      ) {
+        // we don't have to do anything :)
+        return event;
+      } else if (event instanceof ZArrayInsertEvent) {
+        const preArrayEvents = [];
+        for (const preArrayEvent of preArrayEvents) {
+          // advance our key path by 1
+        }
+      } else if (event instanceof ZArrayDeleteEvent) {
+        const _alreadyDeleted = () => false;
+        if (_alreadyDeleted()) {
+          // torpedo this event
+          return new ZNullEvent();
+        } else {
+          const preArrayEvents = [];
+          for (const preArrayEvent of preArrayEvents) {
+            // advance our key path by 1
+          }
+        }
+      } else {
+        console.warn('unknown event type', event);
+        return event;
+      }
+    }); */
+    const rebasedEvents = this.events;
+    
     return new TransactionCache(
       this.doc,
       this.origin,
@@ -253,6 +303,98 @@ class ZMapEvent extends ZEvent {
     return this.valueBuffer;
   }
 }
+/* class ZNullEvent extends ZEvent {
+  constructor() {
+    super();
+  }
+  computeUpdateByteLength() {
+    // XXX
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
+    totalSize += this.getKeyBuffer().byteLength; // key data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // value length
+    totalSize += this.getValueBuffer().byteLength; // value data
+    totalSize = align4(totalSize);
+    
+    return totalSize;
+  }
+  serializeUpdate(uint8Array) {
+    // XXX
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    dataView.setUint32(index, this.constructor.METHOD, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = this.getKeyPathBuffer();
+    dataView.setUint32(index, kpjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(kpjb, index);
+    index += kpjb.byteLength;
+    index = align4(index);
+    
+    const kb = this.getKeyBuffer();
+    dataView.setUint32(index, kb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(kb, index);
+    index += kb.byteLength;
+    index = align4(index);
+    
+    const vb = this.getValueBuffer();
+    dataView.setUint32(index, vb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(vb, index);
+    index += vb.byteLength;
+    index = align4(index);
+  }
+  static deserializeUpdate(doc, uint8Array) {
+    // XXX
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    // skip method
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
+    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    index += kpjbLength;
+    index = align4(index);
+
+    const kbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const kb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kbLength);
+    const key = textDecoder.decode(kb);
+    index += kbLength;
+    index = align4(index);
+
+    const vbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const vb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, vbLength);
+    const value = zbdecode(vb);
+    index += vbLength;
+    index = align4(index);
+    
+    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
+    
+    return new this(
+      impl,
+      keyPath,
+      key,
+      value
+    );
+  }
+} */
 class ZArrayEvent extends ZEvent {
   constructor(impl, keyPath) {
     super(impl, keyPath);
