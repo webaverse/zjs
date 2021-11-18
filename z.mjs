@@ -1203,8 +1203,24 @@ class ZMap extends ZObservable {
   has(k) {
     return k in this.binding;
   }
-  get(k) {
-    return this.binding[k];
+  get(k, Type) {
+    if (Type) {
+      let binding = this.binding[k];
+      if (binding === undefined) {
+        binding = Type.nativeConstructor();
+        this.binding[k] = binding;
+      }
+      let impl = bindingsMap.get(binding);
+      if (!impl) {
+        impl = new Type(binding, this);
+        console.log('getting', binding, Type);
+        bindingsMap.set(binding, impl);
+        bindingParentsMap.set(binding, this.binding);
+      }
+      return impl;
+    } else {
+      return bindingsMap.get(this.binding) ?? this.binding[k];
+    }
   }
   set(k, v) {
     _ensureImplBound(v, this);
