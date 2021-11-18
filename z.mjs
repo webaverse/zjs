@@ -1022,7 +1022,7 @@ class ZEvent {
     if (actionSpec) {
       if (actionSpec.key) {
         return {
-          added: new Set(actionSpec.action === 'add' ? [actionSpec.key] : []),
+          added: new Set(/add|update/.test(actionSpec.action) ? [actionSpec.key] : []),
           deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
           changes: {
             keys: new Map([[
@@ -1036,7 +1036,7 @@ class ZEvent {
         };
       } else if (actionSpec.value) {
         return {
-          added: new Set(actionSpec.action === 'add' ? [actionSpec.value] : []),
+          added: new Set(/add|update/.test(actionSpec.action) ? [actionSpec.value] : []),
           deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.value] : []),
           changes: {
             keys: new Map(),
