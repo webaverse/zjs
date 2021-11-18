@@ -1371,7 +1371,7 @@ class ZArray extends ZObservable {
       if (binding === undefined) {
         // binding = Type.nativeConstructor();
         // this.state[k] = binding;
-        throw new Error('array lookup nonexistent element');
+        throw new Error('array lookup nonexistent typed element');
       }
       let impl = bindingsMap.get(binding);
       if (!impl) {
