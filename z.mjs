@@ -1382,7 +1382,11 @@ class ZArray extends ZObservable {
       return impl;
     } else {
       const index = this.binding.i.indexOf(zid);
-      return this.binding.e[index];
+      if (index !== -1) {
+        return this.binding.e[index];
+      } else {
+        return undefined;
+      }
     }
   }
   push(arr) {
