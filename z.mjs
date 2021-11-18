@@ -324,11 +324,20 @@ class TransactionCache {
 
 let zEventsIota = 0;
 class ZEvent {
-  constructor(impl, keyPath) {
-    this.impl = impl;
+  constructor(keyPath) {
     this.keyPath = keyPath;
-    
+
+    this.impl = null;
     this.keyPathBuffer = null;
+  }
+  bind(doc) {
+    if (doc) {
+      this.impl = doc.getImplByKeyPath(this.keyPath.slice(0, -1));
+      this.doc = doc;
+    } else {
+      this.impl = null;
+      this.doc = null;
+    }
   }
   getEvent() {
     const actionSpec = this.getAction();
@@ -394,8 +403,8 @@ class ZEvent {
   }
 }
 class ZMapEvent extends ZEvent {
-  constructor(impl, keyPath) {
-    super(impl, keyPath);
+  constructor(keyPath) {
+    super(keyPath);
   
     this.keyBuffer = null;
     this.valueBuffer = null;
@@ -417,7 +426,7 @@ class ZMapEvent extends ZEvent {
 }
 class ZNullEvent extends ZEvent {
   constructor() {
-    super();
+    super([]);
     
     this.isZNullEvent = true;
   }
@@ -446,8 +455,8 @@ class ZNullEvent extends ZEvent {
   }
 }
 class ZArrayEvent extends ZEvent {
-  constructor(impl, keyPath) {
-    super(impl, keyPath);
+  constructor(keyPath) {
+    super(keyPath);
     
     this.arrBuffer = null;
     
@@ -461,8 +470,8 @@ class ZArrayEvent extends ZEvent {
   }
 }
 class ZMapSetEvent extends ZMapEvent {
-  constructor(impl, keyPath, key, value) {
-    super(impl, keyPath);
+  constructor(keyPath, key, value) {
+    super(keyPath);
     
     this.key = key;
     this.value = value;
@@ -555,10 +564,10 @@ class ZMapSetEvent extends ZMapEvent {
     index += vbLength;
     index = align4(index);
     
-    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
+    // const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
     
     return new this(
-      impl,
+      // impl,
       keyPath,
       key,
       value
@@ -566,10 +575,9 @@ class ZMapSetEvent extends ZMapEvent {
   }
 }
 class ZMapDeleteEvent extends ZMapEvent {
-  constructor(impl, keyPath, key) { // XXX defer impl lookup binding until after rebase in the parse case, since it might not be valie otherwise
-    super(impl);
+  constructor(keyPath, key) {
+    super(keyPath);
 
-    this.keyPath = keyPath;
     this.key = key;
     
     this.isZMapDeleteEvent = true;
@@ -641,20 +649,19 @@ class ZMapDeleteEvent extends ZMapEvent {
     index += kbLength;
     index = align4(index);
     
-    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
+    // const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
     
     return new this(
-      impl,
+      // impl,
       keyPath,
       key
     );
   }
 }
 class ZArrayPushEvent extends ZArrayEvent {
-  constructor(impl, keyPath, arr) {
-    super(impl);
+  constructor(keyPath, arr) {
+    super(keyPath);
 
-    this.keyPath = keyPath;
     this.arr = arr;
     
     this.isZArrayPushEvent = true;
@@ -732,20 +739,19 @@ class ZArrayPushEvent extends ZArrayEvent {
     index += arrLength;
     index = align4(index);
     
-    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
+    // const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
     
     return new this(
-      impl,
+      // impl,
       keyPath,
       arr
     );
   }
 }
 class ZArrayDeleteEvent extends ZArrayEvent {
-  constructor(impl, keyPath) {
-    super(impl);
+  constructor(keyPath) {
+    super(keyPath);
 
-    this.keyPath = keyPath;
     this.oldValue = null;
     
     this.isZArrayDeleteEvent = true;
@@ -805,10 +811,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     index += kpjbLength;
     index = align4(index);
     
-    const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
-    
     return new this(
-      impl,
       keyPath
     );
   }
@@ -1218,54 +1221,59 @@ class ZMap extends ZObservable {
       let impl = bindingsMap.get(binding);
       if (!impl) {
         impl = new Type(binding, this);
-        console.log('getting', binding, Type);
         bindingsMap.set(binding, impl);
         bindingParentsMap.set(binding, this.binding);
       }
       return impl;
     } else {
-      return bindingsMap.get(this.binding) ?? this.binding[k];
+      const v = this.binding[k];
+      return bindingsMap.get(v) ?? v;
     }
   }
   set(k, v) {
     _ensureImplBound(v, this);
     
     const keyPath = this.getKeyPath();
-    keyPath.push([k, 'v']);
+    const keyType = _getImplKeyType(v) || 'v';
+    keyPath.push([k, keyType]);
     const event = new ZMapSetEvent(
-      this,
       keyPath,
       k,
       v
     );
-    if (this.doc) {
+    event.bind(this.doc);
+    // if (this.doc) {
       this.doc.pushTransaction(TRANSACTION_TYPES.mapSet);
       this.doc.transactionCache.pushEvent(event);
+    // }
+    if (!event.impl) {
+      console.warn('bad event', keyPath, this.doc.state);
+      throw new Error('err 1');
     }
     event.apply();
     event.triggerObservers();
-    if (this.doc) {
+    // if (this.doc) {
       this.doc.popTransaction();
-    }
+    // }
   }
   delete(k) {
     delete this.binding[k];
     const keyPath = this.getKeyPath();
     keyPath.push([k, 'v']);
     const event = new ZMapDeleteEvent(
-      this,
       keyPath,
       k
     );
-    if (this.doc) {
+    event.bind(this.doc);
+    // if (this.doc) {
       this.doc.pushTransaction(TRANSACTION_TYPES.mapDelete);
       this.doc.transactionCache.pushEvent(event);
-    }
+    // }
     event.apply();
     event.triggerObservers();
-    if (this.doc) {
+    // if (this.doc) {
       this.doc.popTransaction();
-    }
+    // }
   }
   keys() {
     const keys = Object.keys(this.binding);
@@ -1366,21 +1374,23 @@ class ZArray extends ZObservable {
     const zid = _makeId();
     
     const keyPath = this.getKeyPath();
-    keyPath.push([zid, 'e']);
+    const impl = bindingsMap.get(arr[0]);
+    const type = 'e' + (_getImplKeyType(impl) || 'v');
+    keyPath.push([zid, type]);
     const event = new ZArrayPushEvent(
-      this,
       keyPath,
       arr
     );
-    if (this.doc) {
+    event.bind(this.doc);
+    // if (this.doc) {
       this.doc.pushTransaction(TRANSACTION_TYPES.arrayPush);
       this.doc.transactionCache.pushEvent(event);
-    }
+    // }
     event.apply();
     event.triggerObservers();
-    if (this.doc) {
+    // if (this.doc) {
       this.doc.popTransaction();
-    }
+    // }
   }
   delete(index, length = 1) {
     if (length !== 1) {
@@ -1390,20 +1400,20 @@ class ZArray extends ZObservable {
     const zid = this.binding.i[index];
     
     const keyPath = this.getKeyPath();
-    keyPath.push([zid, 'e']);
+    keyPath.push([zid, 'ev']);
     const event = new ZArrayDeleteEvent(
-      this,
       keyPath
     );
-    if (this.doc) {
+    event.bind(this.doc);
+    // if (this.doc) {
       this.doc.pushTransaction(TRANSACTION_TYPES.arrayDelete);
       this.doc.transactionCache.pushEvent(event);
-    }
+    // }
     event.apply();
     event.triggerObservers();
-    if (this.doc) {
+    // if (this.doc) {
       this.doc.popTransaction();
-    }
+    // }
   }
   toJSON() {
     return this.binding.e.map(_jsonify);
@@ -1458,6 +1468,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
       throw new Error('transaction skipped clock ticks; desynced');
     }
     
+    transactionCache.bindEvents();
     for (const event of transactionCache.events) {
       event.apply();
       doc.clock++;
