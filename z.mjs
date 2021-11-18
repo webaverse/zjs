@@ -755,6 +755,7 @@ class ZMap extends ZObservable {
     }
     event.apply();
     event.triggerObservers();
+    event.gc();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -774,6 +775,7 @@ class ZMap extends ZObservable {
     }
     event.apply();
     event.triggerObservers();
+    event.gc();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -916,6 +918,7 @@ class ZArray extends ZObservable {
     }
     event.apply();
     event.triggerObservers();
+    event.gc();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -939,6 +942,7 @@ class ZArray extends ZObservable {
     }
     event.apply();
     event.triggerObservers();
+    event.gc();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -996,6 +1000,10 @@ class ZEvent {
   }
   bindToImpl(impl) {
     this.impl = impl;
+  }
+  gc() {
+    this.impl = null;
+    this.keyPathBuffer = null;
   }
   getEvent() {
     const actionSpec = this.getAction();
@@ -1081,6 +1089,12 @@ class ZMapEvent extends ZEvent {
     }
     return this.valueBuffer;
   }
+  gc() {
+    super.gc();
+    
+    this.keyBuffer = null;
+    this.valueBuffer = null;
+  }
 }
 class ZNullEvent extends ZEvent {
   constructor() {
@@ -1125,6 +1139,11 @@ class ZArrayEvent extends ZEvent {
       this.arrBuffer = zbencode(_getBindingForArray(this.arr));
     }
     return this.arrBuffer;
+  }
+  gc() {
+    super.gc();
+    
+    this.arrBuffer = null;
   }
 }
 class ZMapSetEvent extends ZMapEvent {
@@ -1513,6 +1532,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
       event.apply();
       doc.clock++;
       event.triggerObservers();
+      event.gc();
     }
     
     {
