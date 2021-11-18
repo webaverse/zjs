@@ -37,6 +37,12 @@ describe('zbencode + zbdecode', function() {
 });
 
 describe('ZMap', function() {
+  describe('detached', function() {
+    const map = new Z.Map();
+    
+    map.set('key', 'value');
+    assert.equal(map.get('key2'), undefined);
+  });
   describe('basic', function() {
     it('should support basic operations', function() {
       const doc = new Z.Doc();
@@ -62,6 +68,15 @@ describe('ZMap', function() {
 });
 
 describe('ZArray', function() {
+  describe('detached', function() {
+    const array = new Z.Array();
+    
+    array.push([1]);
+    assert.equal(array.get(0), 1);
+    assert.equal(array.get(1), undefined);
+    assert.equal(array.length, 1);
+    assert.deepEqual(array.toJSON(), [1]);
+  });
   describe('basic', function() {
     it('should support basic operations', function() {
       const doc = new Z.Doc();
