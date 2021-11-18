@@ -1180,8 +1180,8 @@ class ZObservable {
 
 const _ensureImplBound = (v, parent) => {
   if (
-    v.isZMap ||
-    v.isZArray
+    v?.isZMap ||
+    v?.isZArray
   ) {
     const impl = bindingsMap.get(v.binding);
     if (!impl) {
