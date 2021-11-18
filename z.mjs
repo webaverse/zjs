@@ -1087,6 +1087,15 @@ class ZDoc extends ZEventEmitter {
   }
 }
 
+const _getImplKeyType = impl => {
+  if (impl.isZArray) {
+    return 'a';
+  } else if (impl.isZMap) {
+    return 'm';
+  } else {
+    return null;
+  }
+};
 class ZObservable {
   constructor(binding, doc) {
     this.binding = binding;
@@ -1126,15 +1135,7 @@ class ZObservable {
         const parentImpl = bindingsMap.get(parentBinding);
         if (parentImpl.isZDoc) {
           const impl = bindingsMap.get(binding);
-          const keyType = (() => {
-            if (impl.isZArray) {
-              return 'a';
-            } else if (impl.isZMap) {
-              return 'm';
-            } else {
-              return null;
-            }
-          })();
+          const keyType = _getImplKeyType(impl);
           if (keyType !== null) {
             const keys = Object.keys(parentBinding);
             const matchingKeys = keys.filter(k => parentBinding[k] === binding);
@@ -1156,7 +1157,9 @@ class ZObservable {
           const matchingKeys = keys.filter(k => parentBinding[k] === binding);
           if (matchingKeys.length === 1) {
             const key = matchingKeys[0];
-            keyPath.push([key, 'v']);
+            const impl = bindingsMap.get(binding);
+            const type = _getImplKeyType(impl) || 'v';
+            keyPath.push([key, type]);
           } else {
             console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
           }
