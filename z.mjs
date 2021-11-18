@@ -1101,9 +1101,9 @@ class ZDoc extends ZEventEmitter {
 }
 
 const _getImplKeyType = impl => {
-  if (impl.isZArray) {
+  if (impl?.isZArray) {
     return 'a';
-  } else if (impl.isZMap) {
+  } else if (impl?.isZMap) {
     return 'm';
   } else {
     return null;
