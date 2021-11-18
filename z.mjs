@@ -1157,9 +1157,10 @@ class ZObservable {
               keyPath.push([key, keyType]);
             } else {
               console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
+              throw new Error('zarray did not have unique key (had ' + matchingKeys.length + ')');
             }
           } else {
-            console.warn('unknown key type', impl, parentImpl);
+            console.warn('unknown key type for doc set', impl, parentImpl);
           }
         } else if (parentImpl.isZArray) {
           const index = parentImpl.binding.e.indexOf(binding);
@@ -1177,6 +1178,7 @@ class ZObservable {
             keyPath.push([key, type]);
           } else {
             console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
+            throw new Error('zmap did not have unique key (had ' + matchingKeys.length + ')');
           }
         } else {
           console.log('failed to find binding getting key path', binding);
