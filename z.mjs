@@ -185,9 +185,9 @@ class TransactionCache {
   pushEvent(event) {
     this.events.push(event);
   }
-  bindEvents() {
+  bindEventsToDoc() {
     for (const event of this.events) {
-      event.bind(this.doc);
+      event.bindToDoc(this.doc);
     }
   }
   rebase(historyTail) {
@@ -321,500 +321,6 @@ class TransactionCache {
     return transactionCache;
   }
 }
-
-let zEventsIota = 0;
-class ZEvent {
-  constructor(keyPath) {
-    this.keyPath = keyPath;
-
-    this.impl = null;
-    this.keyPathBuffer = null;
-  }
-  bind(doc) {
-    if (doc) {
-      this.impl = doc.getImplByKeyPath(this.keyPath.slice(0, -1));
-      this.doc = doc;
-    } else {
-      this.impl = null;
-      this.doc = null;
-    }
-  }
-  getEvent() {
-    const actionSpec = this.getAction();
-    if (actionSpec) {
-      if (actionSpec.key) {
-        return {
-          added: new Set(actionSpec.action === 'add' ? [actionSpec.key] : []),
-          deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
-          changes: {
-            keys: new Map([[
-              actionSpec.key,
-              {
-                action: actionSpec.action,
-              },
-            ]]),
-            values: new Map(),
-          },
-        };
-      } else if (actionSpec.value) {
-        return {
-          added: new Set(actionSpec.action === 'add' ? [actionSpec.value] : []),
-          deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.value] : []),
-          changes: {
-            keys: new Map(),
-            values: new Map([[
-              actionSpec.value,
-              {
-                action: actionSpec.action,
-              },
-            ]]),
-          },
-        };
-      } else {
-        console.warn('unknown action spec format', actionSpec, new Error().stack);
-        return null;
-      }
-    } else {
-      return null;
-    }
-  }
-  triggerObservers() {
-    const e = this.getEvent();
-    if (e !== null) {
-      this.impl.triggerObservers(e);
-    }
-  }
-  getKeyPathBuffer() {
-    if (this.keyPathBuffer === null) {
-      this.keyPathBuffer = textEncoder.encode(
-        JSON.stringify(this.keyPath)
-      );
-    }
-    return this.keyPathBuffer;
-  }
-  computeUpdateByteLength() {
-    throw new Error('not implemented');
-  }
-  serializeUpdate(uint8Array) {
-    throw new Error('not implemented');
-  }
-  static deserializeUpdate(doc, uint8Array) {
-    throw new Error('not implemented');
-  }
-}
-class ZMapEvent extends ZEvent {
-  constructor(keyPath) {
-    super(keyPath);
-  
-    this.keyBuffer = null;
-    this.valueBuffer = null;
-    
-    this.isZMapEvent = true;
-  }
-  getKeyBuffer() {
-    if (this.keyBuffer === null) {
-      this.keyBuffer = textEncoder.encode(this.key);
-    }
-    return this.keyBuffer;
-  }
-  getValueBuffer() {
-    if (this.valueBuffer === null) {
-      this.valueBuffer = zbencode(_getBindingForValue(this.value));
-    }
-    return this.valueBuffer;
-  }
-}
-class ZNullEvent extends ZEvent {
-  constructor() {
-    super([]);
-    
-    this.isZNullEvent = true;
-  }
-  static METHOD = ++zEventsIota;
-  apply() {
-    // nothing
-  }
-  getAction() {
-    return null;
-  }
-  computeUpdateByteLength() {
-    let totalSize = 0;
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
-    
-    return totalSize;
-  }
-  serializeUpdate(uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    dataView.setUint32(index, this.constructor.METHOD, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-  }
-  static deserializeUpdate(doc, uint8Array) {
-    return new this();
-  }
-}
-class ZArrayEvent extends ZEvent {
-  constructor(keyPath) {
-    super(keyPath);
-    
-    this.arrBuffer = null;
-    
-    this.isZArrayEvent = true;
-  }
-  getArrBuffer() {
-    if (this.arrBuffer === null) {
-      this.arrBuffer = zbencode(_getBindingForArray(this.arr));
-    }
-    return this.arrBuffer;
-  }
-}
-class ZMapSetEvent extends ZMapEvent {
-  constructor(keyPath, key, value) {
-    super(keyPath);
-    
-    this.key = key;
-    this.value = value;
-    
-    this.isZMapSetEvent = true;
-  }
-  static METHOD = ++zEventsIota;
-  apply() {
-    const valueBinding = _getBindingForValue(this.value);
-    this.impl.binding[this.key] = valueBinding;
-  }
-  getAction() {
-    return {
-      action: 'update',
-      key: this.key,
-    };
-  }
-  computeUpdateByteLength() {
-    let totalSize = 0;
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
-    totalSize += this.getKeyPathBuffer().byteLength; // key path data
-    totalSize = align4(totalSize);
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
-    totalSize += this.getKeyBuffer().byteLength; // key data
-    totalSize = align4(totalSize);
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // value length
-    totalSize += this.getValueBuffer().byteLength; // value data
-    totalSize = align4(totalSize);
-    
-    return totalSize;
-  }
-  serializeUpdate(uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    dataView.setUint32(index, this.constructor.METHOD, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = this.getKeyPathBuffer();
-    dataView.setUint32(index, kpjb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(kpjb, index);
-    index += kpjb.byteLength;
-    index = align4(index);
-    
-    const kb = this.getKeyBuffer();
-    dataView.setUint32(index, kb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(kb, index);
-    index += kb.byteLength;
-    index = align4(index);
-    
-    const vb = this.getValueBuffer();
-    dataView.setUint32(index, vb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(vb, index);
-    index += vb.byteLength;
-    index = align4(index);
-  }
-  static deserializeUpdate(doc, uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    // skip method
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
-    index += kpjbLength;
-    index = align4(index);
-
-    const kbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    const kb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kbLength);
-    const key = textDecoder.decode(kb);
-    index += kbLength;
-    index = align4(index);
-
-    const vbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    const vb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, vbLength);
-    const value = zbdecode(vb);
-    index += vbLength;
-    index = align4(index);
-
-    return new this(
-      keyPath,
-      key,
-      value
-    );
-  }
-}
-class ZMapDeleteEvent extends ZMapEvent {
-  constructor(keyPath, key) {
-    super(keyPath);
-
-    this.key = key;
-    
-    this.isZMapDeleteEvent = true;
-  }
-  static METHOD = ++zEventsIota;
-  apply() {
-    delete this.impl.binding[this.key];
-  }
-  getAction() {
-    return {
-      action: 'update',
-      key: this.key,
-    };
-  }
-  computeUpdateByteLength() {
-    let totalSize = 0;
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
-    totalSize += this.getKeyPathBuffer().byteLength; // key path data
-    totalSize = align4(totalSize);
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
-    totalSize += this.getKeyBuffer().byteLength; // key data
-    totalSize = align4(totalSize);
-    
-    return totalSize;
-  }
-  serializeUpdate(uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    dataView.setUint32(index, this.constructor.METHOD, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = this.getKeyPathBuffer();
-    dataView.setUint32(index, kpjb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(kpjb, index);
-    index += kpjb.byteLength;
-    index = align4(index);
-    
-    const kb = this.getKeyBuffer();
-    dataView.setUint32(index, kb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(kb, index);
-    index += kb.byteLength;
-    index = align4(index);
-  }
-  static deserializeUpdate(doc, uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    // skip method
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
-    index += kpjbLength;
-    index = align4(index);
-
-    const kbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    const kb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kbLength);
-    const key = textDecoder.decode(kb);
-    index += kbLength;
-    index = align4(index);
-    
-    return new this(
-      keyPath,
-      key
-    );
-  }
-}
-class ZArrayPushEvent extends ZArrayEvent {
-  constructor(keyPath, arr) {
-    super(keyPath);
-
-    this.arr = arr;
-    
-    this.isZArrayPushEvent = true;
-  }
-  static METHOD = ++zEventsIota;
-  apply() {
-    const arrBinding = _getBindingForArray(this.arr);
-    this.impl.binding.e.push.apply(this.impl.binding.e, arrBinding);
-    const zid = this.keyPath[this.keyPath.length - 1][0];
-    this.impl.binding.i.push(zid);
-  }
-  getAction() {
-    return {
-      action: 'add',
-      value: this.arr[0],
-    };
-  }
-  computeUpdateByteLength() {
-    let totalSize = 0;
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
-    totalSize += this.getKeyPathBuffer().byteLength; // key path data
-    totalSize = align4(totalSize);
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // arr length
-    totalSize += this.getArrBuffer().byteLength; // arr data
-    totalSize = align4(totalSize);
-    
-    return totalSize;
-  }
-  serializeUpdate(uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    dataView.setUint32(index, this.constructor.METHOD, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = this.getKeyPathBuffer();
-    dataView.setUint32(index, kpjb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    uint8Array.set(kpjb, index);
-    index += kpjb.byteLength;
-    index = align4(index);
-    
-    const arrb = this.getArrBuffer();
-    dataView.setUint32(index, arrb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    uint8Array.set(arrb, index);
-    index += arrb.byteLength;
-    index = align4(index);
-  }
-  static deserializeUpdate(doc, uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    // skip method
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
-    index += kpjbLength;
-    index = align4(index);
-
-    const arrLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const arrb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, arrLength);
-    const arr = zbdecode(arrb);
-    index += arrLength;
-    index = align4(index);
-    
-    return new this(
-      keyPath,
-      arr
-    );
-  }
-}
-class ZArrayDeleteEvent extends ZArrayEvent {
-  constructor(keyPath) {
-    super(keyPath);
-
-    this.oldValue = null;
-    
-    this.isZArrayDeleteEvent = true;
-  }
-  static METHOD = ++zEventsIota;
-  apply() {
-    const zid = this.keyPath[this.keyPath.length - 1][0];
-    const index = this.impl.binding.i.indexOf(zid);
-    this.oldValue = this.impl.binding.e.splice(index, 1)[0];
-    this.impl.binding.i.splice(index, 1);
-  }
-  getAction() {
-    return {
-      action: 'delete',
-      value: this.oldValue,
-    };
-  }
-  computeUpdateByteLength() {
-    let totalSize = 0;
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
-    totalSize += this.getKeyPathBuffer().byteLength; // key path data
-    totalSize = align4(totalSize);
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // op index
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // op length
-    
-    return totalSize;
-  }
-  serializeUpdate(uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    dataView.setUint32(index, this.constructor.METHOD, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = this.getKeyPathBuffer();
-    dataView.setUint32(index, kpjb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(kpjb, index);
-    index += kpjb.byteLength;
-    index = align4(index);
-  }
-  static deserializeUpdate(doc, uint8Array) {
-    const dataView = _makeDataView(uint8Array);
-    
-    let index = 0;
-    // skip method
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    
-    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
-    index += kpjbLength;
-    index = align4(index);
-    
-    return new this(
-      keyPath
-    );
-  }
-}
-const ZEVENT_CONSTRUCTORS = [
-  null, // start at 1
-  ZNullEvent,
-  ZMapSetEvent,
-  ZMapDeleteEvent,
-  ZArrayPushEvent,
-  ZArrayDeleteEvent,
-];
 
 class ZDoc extends ZEventEmitter {
   constructor() {
@@ -1242,20 +748,16 @@ class ZMap extends ZObservable {
       k,
       v
     );
-    event.bind(this.doc);
-    // if (this.doc) {
+    event.bindToImpl(this);
+    if (this.doc) {
       this.doc.pushTransaction(TRANSACTION_TYPES.mapSet);
       this.doc.transactionCache.pushEvent(event);
-    // }
-    if (!event.impl) {
-      console.warn('bad event', keyPath, this.doc.state);
-      throw new Error('err 1');
     }
     event.apply();
     event.triggerObservers();
-    // if (this.doc) {
+    if (this.doc) {
       this.doc.popTransaction();
-    // }
+    }
   }
   delete(k) {
     delete this.binding[k];
@@ -1265,16 +767,16 @@ class ZMap extends ZObservable {
       keyPath,
       k
     );
-    event.bind(this.doc);
-    // if (this.doc) {
+    event.bindToImpl(this);
+    if (this.doc) {
       this.doc.pushTransaction(TRANSACTION_TYPES.mapDelete);
       this.doc.transactionCache.pushEvent(event);
-    // }
+    }
     event.apply();
     event.triggerObservers();
-    // if (this.doc) {
+    if (this.doc) {
       this.doc.popTransaction();
-    // }
+    }
   }
   keys() {
     const keys = Object.keys(this.binding);
@@ -1407,16 +909,16 @@ class ZArray extends ZObservable {
       keyPath,
       arr
     );
-    event.bind(this.doc);
-    // if (this.doc) {
+    event.bindToImpl(this);
+    if (this.doc) {
       this.doc.pushTransaction(TRANSACTION_TYPES.arrayPush);
       this.doc.transactionCache.pushEvent(event);
-    // }
+    }
     event.apply();
     event.triggerObservers();
-    // if (this.doc) {
+    if (this.doc) {
       this.doc.popTransaction();
-    // }
+    }
   }
   delete(index, length = 1) {
     if (length !== 1) {
@@ -1430,16 +932,16 @@ class ZArray extends ZObservable {
     const event = new ZArrayDeleteEvent(
       keyPath
     );
-    event.bind(this.doc);
-    // if (this.doc) {
+    event.bindToImpl(this);
+    if (this.doc) {
       this.doc.pushTransaction(TRANSACTION_TYPES.arrayDelete);
       this.doc.transactionCache.pushEvent(event);
-    // }
+    }
     event.apply();
     event.triggerObservers();
-    // if (this.doc) {
+    if (this.doc) {
       this.doc.popTransaction();
-    // }
+    }
   }
   toJSON() {
     return this.binding.e.map(_jsonify);
@@ -1463,6 +965,518 @@ class ZArray extends ZObservable {
     };
   }
 }
+
+let zEventsIota = 0;
+class ZEvent {
+  constructor(keyPath) {
+    this.keyPath = keyPath;
+
+    this.impl = null;
+    this.keyPathBuffer = null;
+  }
+  bindToDoc(doc) {
+    if (doc) {
+      this.impl = doc.getImplByKeyPath(this.keyPath.slice(0, -1));
+      // this.doc = doc;
+    } else {
+      this.impl = null;
+      // this.doc = null;
+    }
+    /* if (!this.impl) {
+      if (!doc) {
+        doc = new Y.Doc();
+      }
+      
+      const Type = this.constructor.Type;
+      const binding = Type.nativeConstructor();
+      this.impl = new Type(binding, doc);
+      bindingsMap.set(binding, this.impl);
+      bindingParentsMap.set(binding, doc.state);
+    } */
+  }
+  bindToImpl(impl) {
+    this.impl = impl;
+  }
+  getEvent() {
+    const actionSpec = this.getAction();
+    if (actionSpec) {
+      if (actionSpec.key) {
+        return {
+          added: new Set(actionSpec.action === 'add' ? [actionSpec.key] : []),
+          deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
+          changes: {
+            keys: new Map([[
+              actionSpec.key,
+              {
+                action: actionSpec.action,
+              },
+            ]]),
+            values: new Map(),
+          },
+        };
+      } else if (actionSpec.value) {
+        return {
+          added: new Set(actionSpec.action === 'add' ? [actionSpec.value] : []),
+          deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.value] : []),
+          changes: {
+            keys: new Map(),
+            values: new Map([[
+              actionSpec.value,
+              {
+                action: actionSpec.action,
+              },
+            ]]),
+          },
+        };
+      } else {
+        console.warn('unknown action spec format', actionSpec, new Error().stack);
+        return null;
+      }
+    } else {
+      return null;
+    }
+  }
+  triggerObservers() {
+    const e = this.getEvent();
+    if (e !== null) {
+      this.impl.triggerObservers(e);
+    }
+  }
+  getKeyPathBuffer() {
+    if (this.keyPathBuffer === null) {
+      this.keyPathBuffer = textEncoder.encode(
+        JSON.stringify(this.keyPath)
+      );
+    }
+    return this.keyPathBuffer;
+  }
+  computeUpdateByteLength() {
+    throw new Error('not implemented');
+  }
+  serializeUpdate(uint8Array) {
+    throw new Error('not implemented');
+  }
+  static deserializeUpdate(doc, uint8Array) {
+    throw new Error('not implemented');
+  }
+}
+class ZMapEvent extends ZEvent {
+  constructor(keyPath) {
+    super(keyPath);
+  
+    this.keyBuffer = null;
+    this.valueBuffer = null;
+    
+    this.isZMapEvent = true;
+  }
+  getKeyBuffer() {
+    if (this.keyBuffer === null) {
+      this.keyBuffer = textEncoder.encode(this.key);
+    }
+    return this.keyBuffer;
+  }
+  getValueBuffer() {
+    if (this.valueBuffer === null) {
+      this.valueBuffer = zbencode(_getBindingForValue(this.value));
+    }
+    return this.valueBuffer;
+  }
+}
+class ZNullEvent extends ZEvent {
+  constructor() {
+    super([]);
+    
+    this.isZNullEvent = true;
+  }
+  static METHOD = ++zEventsIota;
+  apply() {
+    // nothing
+  }
+  getAction() {
+    return null;
+  }
+  computeUpdateByteLength() {
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    return totalSize;
+  }
+  serializeUpdate(uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    dataView.setUint32(index, this.constructor.METHOD, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+  }
+  static deserializeUpdate(doc, uint8Array) {
+    return new this();
+  }
+}
+class ZArrayEvent extends ZEvent {
+  constructor(keyPath) {
+    super(keyPath);
+    
+    this.arrBuffer = null;
+    
+    this.isZArrayEvent = true;
+  }
+  getArrBuffer() {
+    if (this.arrBuffer === null) {
+      this.arrBuffer = zbencode(_getBindingForArray(this.arr));
+    }
+    return this.arrBuffer;
+  }
+}
+class ZMapSetEvent extends ZMapEvent {
+  constructor(keyPath, key, value) {
+    super(keyPath);
+    
+    this.key = key;
+    this.value = value;
+    
+    this.isZMapSetEvent = true;
+  }
+  static METHOD = ++zEventsIota;
+  static Type = ZMap;
+  apply() {
+    const valueBinding = _getBindingForValue(this.value);
+    this.impl.binding[this.key] = valueBinding;
+  }
+  getAction() {
+    return {
+      action: 'update',
+      key: this.key,
+    };
+  }
+  computeUpdateByteLength() {
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
+    totalSize += this.getKeyBuffer().byteLength; // key data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // value length
+    totalSize += this.getValueBuffer().byteLength; // value data
+    totalSize = align4(totalSize);
+    
+    return totalSize;
+  }
+  serializeUpdate(uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    dataView.setUint32(index, this.constructor.METHOD, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = this.getKeyPathBuffer();
+    dataView.setUint32(index, kpjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(kpjb, index);
+    index += kpjb.byteLength;
+    index = align4(index);
+    
+    const kb = this.getKeyBuffer();
+    dataView.setUint32(index, kb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(kb, index);
+    index += kb.byteLength;
+    index = align4(index);
+    
+    const vb = this.getValueBuffer();
+    dataView.setUint32(index, vb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(vb, index);
+    index += vb.byteLength;
+    index = align4(index);
+  }
+  static deserializeUpdate(doc, uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    // skip method
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
+    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    index += kpjbLength;
+    index = align4(index);
+
+    const kbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const kb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kbLength);
+    const key = textDecoder.decode(kb);
+    index += kbLength;
+    index = align4(index);
+
+    const vbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const vb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, vbLength);
+    const value = zbdecode(vb);
+    index += vbLength;
+    index = align4(index);
+
+    return new this(
+      keyPath,
+      key,
+      value
+    );
+  }
+}
+class ZMapDeleteEvent extends ZMapEvent {
+  constructor(keyPath, key) {
+    super(keyPath);
+
+    this.key = key;
+    
+    this.isZMapDeleteEvent = true;
+  }
+  static METHOD = ++zEventsIota;
+  static Type = ZMap;
+  apply() {
+    delete this.impl.binding[this.key];
+  }
+  getAction() {
+    return {
+      action: 'update',
+      key: this.key,
+    };
+  }
+  computeUpdateByteLength() {
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
+    totalSize += this.getKeyBuffer().byteLength; // key data
+    totalSize = align4(totalSize);
+    
+    return totalSize;
+  }
+  serializeUpdate(uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    dataView.setUint32(index, this.constructor.METHOD, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = this.getKeyPathBuffer();
+    dataView.setUint32(index, kpjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(kpjb, index);
+    index += kpjb.byteLength;
+    index = align4(index);
+    
+    const kb = this.getKeyBuffer();
+    dataView.setUint32(index, kb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(kb, index);
+    index += kb.byteLength;
+    index = align4(index);
+  }
+  static deserializeUpdate(doc, uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    // skip method
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
+    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    index += kpjbLength;
+    index = align4(index);
+
+    const kbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const kb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kbLength);
+    const key = textDecoder.decode(kb);
+    index += kbLength;
+    index = align4(index);
+    
+    return new this(
+      keyPath,
+      key
+    );
+  }
+}
+class ZArrayPushEvent extends ZArrayEvent {
+  constructor(keyPath, arr) {
+    super(keyPath);
+
+    this.arr = arr;
+    
+    this.isZArrayPushEvent = true;
+  }
+  static METHOD = ++zEventsIota;
+  static Type = ZArray;
+  apply() {
+    const arrBinding = _getBindingForArray(this.arr);
+    this.impl.binding.e.push.apply(this.impl.binding.e, arrBinding);
+    const zid = this.keyPath[this.keyPath.length - 1][0];
+    this.impl.binding.i.push(zid);
+  }
+  getAction() {
+    return {
+      action: 'add',
+      value: this.arr[0],
+    };
+  }
+  computeUpdateByteLength() {
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // arr length
+    totalSize += this.getArrBuffer().byteLength; // arr data
+    totalSize = align4(totalSize);
+    
+    return totalSize;
+  }
+  serializeUpdate(uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    dataView.setUint32(index, this.constructor.METHOD, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = this.getKeyPathBuffer();
+    dataView.setUint32(index, kpjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    uint8Array.set(kpjb, index);
+    index += kpjb.byteLength;
+    index = align4(index);
+    
+    const arrb = this.getArrBuffer();
+    dataView.setUint32(index, arrb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    uint8Array.set(arrb, index);
+    index += arrb.byteLength;
+    index = align4(index);
+  }
+  static deserializeUpdate(doc, uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    // skip method
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
+    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    index += kpjbLength;
+    index = align4(index);
+
+    const arrLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const arrb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, arrLength);
+    const arr = zbdecode(arrb);
+    index += arrLength;
+    index = align4(index);
+    
+    return new this(
+      keyPath,
+      arr
+    );
+  }
+}
+class ZArrayDeleteEvent extends ZArrayEvent {
+  constructor(keyPath) {
+    super(keyPath);
+
+    this.oldValue = null;
+    
+    this.isZArrayDeleteEvent = true;
+  }
+  static METHOD = ++zEventsIota;
+  static Type = ZArray;
+  apply() {
+    const zid = this.keyPath[this.keyPath.length - 1][0];
+    const index = this.impl.binding.i.indexOf(zid);
+    this.oldValue = this.impl.binding.e.splice(index, 1)[0];
+    this.impl.binding.i.splice(index, 1);
+  }
+  getAction() {
+    return {
+      action: 'delete',
+      value: this.oldValue,
+    };
+  }
+  computeUpdateByteLength() {
+    let totalSize = 0;
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // method
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+    
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // op index
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // op length
+    
+    return totalSize;
+  }
+  serializeUpdate(uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    dataView.setUint32(index, this.constructor.METHOD, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = this.getKeyPathBuffer();
+    dataView.setUint32(index, kpjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(kpjb, index);
+    index += kpjb.byteLength;
+    index = align4(index);
+  }
+  static deserializeUpdate(doc, uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    // skip method
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    
+    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
+    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    index += kpjbLength;
+    index = align4(index);
+    
+    return new this(
+      keyPath
+    );
+  }
+}
+const ZEVENT_CONSTRUCTORS = [
+  null, // start at 1
+  ZNullEvent,
+  ZMapSetEvent,
+  ZMapDeleteEvent,
+  ZArrayPushEvent,
+  ZArrayDeleteEvent,
+];
 
 function applyUpdate(doc, uint8Array, transactionOrigin) {
   const dataView = _makeDataView(uint8Array);
@@ -1494,7 +1508,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
       throw new Error('transaction skipped clock ticks; desynced');
     }
     
-    transactionCache.bindEvents();
+    transactionCache.bindEventsToDoc();
     for (const event of transactionCache.events) {
       event.apply();
       doc.clock++;
