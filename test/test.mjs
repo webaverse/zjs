@@ -483,159 +483,186 @@ describe('sync', function() {
       assert.equal(doc3.clock, 2);
     }
     it('array + map', run(true));
-    it('array + map reverse order', run(false));
+    it('array + map reverse', run(false));
   });
   describe('conflicting transactions', function() {
-    it('conflicting array push delete', () => {
-      const doc1 = new Z.Doc();
-      doc1.setResolvePriority(1);
-      const array1 = doc1.getArray('array');
-      const map1 = doc1.getMap('map');
-      
-      const doc2 = new Z.Doc();
-      doc2.setResolvePriority(1);
-      const array2 = doc2.getArray('array');
-      const map2 = doc2.getMap('map');
-      
-      const doc3 = new Z.Doc();
-      doc3.setResolvePriority(0);
-      const array3 = doc3.getArray('array');
-      const map3 = doc3.getMap('map');
+    {
+      const run = forward => function() {
+        const doc1 = new Z.Doc();
+        doc1.setResolvePriority(1);
+        const array1 = doc1.getArray('array');
+        const map1 = doc1.getMap('map');
+        
+        const doc2 = new Z.Doc();
+        doc2.setResolvePriority(1);
+        const array2 = doc2.getArray('array');
+        const map2 = doc2.getMap('map');
+        
+        const doc3 = new Z.Doc();
+        doc3.setResolvePriority(0);
+        const array3 = doc3.getArray('array');
+        const map3 = doc3.getMap('map');
 
-      // initialize
-      {
-        array1.push([1]);
-        const uint8Array = Z.encodeStateAsUpdate(doc1);
-        Z.applyUpdate(doc2, uint8Array);
-        Z.applyUpdate(doc3, uint8Array);
-      }
-
-      let doc1Update;
-      doc1.on('update', (uint8Array, origin, doc, transaction) => {
-        if (origin === 'doc1') {
-          doc1Update = uint8Array;
+        // initialize
+        {
+          array1.push([1]);
+          const uint8Array = Z.encodeStateAsUpdate(doc1);
+          Z.applyUpdate(doc2, uint8Array);
+          Z.applyUpdate(doc3, uint8Array);
         }
-      });
-      let doc2Update;
-      doc2.on('update', (uint8Array, origin, doc, transaction) => {
-        if (origin === 'doc2') {
-          doc2Update = uint8Array;
+
+        let doc1Update;
+        doc1.on('update', (uint8Array, origin, doc, transaction) => {
+          if (origin === 'doc1') {
+            doc1Update = uint8Array;
+          }
+        });
+        let doc2Update;
+        doc2.on('update', (uint8Array, origin, doc, transaction) => {
+          if (origin === 'doc2') {
+            doc2Update = uint8Array;
+          }
+        });
+
+        doc1.transact(() => {
+          array1.push([2]);
+        }, 'doc1');
+        doc2.transact(() => {
+          array2.delete(0);
+        }, 'doc2');
+
+        if (forward) {
+          Z.applyUpdate(doc3, doc1Update, 'doc1');
+          Z.applyUpdate(doc3, doc2Update, 'doc2');
+        } else {
+          Z.applyUpdate(doc3, doc2Update, 'doc2');
+          Z.applyUpdate(doc3, doc1Update, 'doc1');
         }
-      });
 
-      doc1.transact(() => {
-        array1.push([2]);
-      }, 'doc1');
-      doc2.transact(() => {
-        array2.delete(0);
-      }, 'doc2');
+        assert.deepEqual(array3.toJSON(), [2]);
+      };
+      it('conflicting array push delete', run(true));
+      it('conflicting array push delete', run(false));
+    }
+    {
+      const run = forward => function() {
+        const doc1 = new Z.Doc();
+        doc1.setResolvePriority(1);
+        const array1 = doc1.getArray('array');
+        const map1 = doc1.getMap('map');
+        
+        const doc2 = new Z.Doc();
+        doc2.setResolvePriority(1);
+        const array2 = doc2.getArray('array');
+        const map2 = doc2.getMap('map');
+        
+        const doc3 = new Z.Doc();
+        doc3.setResolvePriority(0);
+        const array3 = doc3.getArray('array');
+        const map3 = doc3.getMap('map');
 
-      Z.applyUpdate(doc3, doc1Update, 'doc1');
-      Z.applyUpdate(doc3, doc2Update, 'doc2');
-
-      assert.deepEqual(array3.toJSON(), [2]);
-    });
-    it('conflicting array delete same', () => {
-      const doc1 = new Z.Doc();
-      doc1.setResolvePriority(1);
-      const array1 = doc1.getArray('array');
-      const map1 = doc1.getMap('map');
-      
-      const doc2 = new Z.Doc();
-      doc2.setResolvePriority(1);
-      const array2 = doc2.getArray('array');
-      const map2 = doc2.getMap('map');
-      
-      const doc3 = new Z.Doc();
-      doc3.setResolvePriority(0);
-      const array3 = doc3.getArray('array');
-      const map3 = doc3.getMap('map');
-
-      // initialize
-      {
-        array1.push([1]);
-        array1.push([2]);
-        const uint8Array = Z.encodeStateAsUpdate(doc1);
-        Z.applyUpdate(doc2, uint8Array);
-        Z.applyUpdate(doc3, uint8Array);
-      }
-
-      let doc1Update;
-      doc1.on('update', (uint8Array, origin, doc, transaction) => {
-        if (origin === 'doc1') {
-          doc1Update = uint8Array;
+        // initialize
+        {
+          array1.push([1]);
+          array1.push([2]);
+          const uint8Array = Z.encodeStateAsUpdate(doc1);
+          Z.applyUpdate(doc2, uint8Array);
+          Z.applyUpdate(doc3, uint8Array);
         }
-      });
-      let doc2Update;
-      doc2.on('update', (uint8Array, origin, doc, transaction) => {
-        if (origin === 'doc2') {
-          doc2Update = uint8Array;
+
+        let doc1Update;
+        doc1.on('update', (uint8Array, origin, doc, transaction) => {
+          if (origin === 'doc1') {
+            doc1Update = uint8Array;
+          }
+        });
+        let doc2Update;
+        doc2.on('update', (uint8Array, origin, doc, transaction) => {
+          if (origin === 'doc2') {
+            doc2Update = uint8Array;
+          }
+        });
+
+        doc1.transact(() => {
+          array1.delete(0);
+        }, 'doc1');
+        doc2.transact(() => {
+          array2.delete(0);
+        }, 'doc2');
+
+        if (forward) {
+          Z.applyUpdate(doc3, doc1Update, 'doc1');
+          Z.applyUpdate(doc3, doc2Update, 'doc2');
+        } else {
+          Z.applyUpdate(doc3, doc2Update, 'doc2');
+          Z.applyUpdate(doc3, doc1Update, 'doc1');
         }
-      });
 
-      doc1.transact(() => {
-        array1.delete(0);
-      }, 'doc1');
-      doc2.transact(() => {
-        array2.delete(0);
-      }, 'doc2');
+        assert.deepEqual(array3.toJSON(), [2]);
+      };
+      it('conflicting array delete same', run(true));
+      it('conflicting array delete same reverse', run(true));
+    }
+    {
+      const run = forward => function() {
+        const doc1 = new Z.Doc();
+        doc1.setResolvePriority(1);
+        const array1 = doc1.getArray('array');
+        const map1 = doc1.getMap('map');
+        
+        const doc2 = new Z.Doc();
+        doc2.setResolvePriority(1);
+        const array2 = doc2.getArray('array');
+        const map2 = doc2.getMap('map');
+        
+        const doc3 = new Z.Doc();
+        doc3.setResolvePriority(0);
+        const array3 = doc3.getArray('array');
+        const map3 = doc3.getMap('map');
 
-      Z.applyUpdate(doc3, doc1Update, 'doc1');
-      Z.applyUpdate(doc3, doc2Update, 'doc2');
-
-      assert.deepEqual(array3.toJSON(), [2]);
-    });
-    it('conflicting array delete different', () => {
-      const doc1 = new Z.Doc();
-      doc1.setResolvePriority(1);
-      const array1 = doc1.getArray('array');
-      const map1 = doc1.getMap('map');
-      
-      const doc2 = new Z.Doc();
-      doc2.setResolvePriority(1);
-      const array2 = doc2.getArray('array');
-      const map2 = doc2.getMap('map');
-      
-      const doc3 = new Z.Doc();
-      doc3.setResolvePriority(0);
-      const array3 = doc3.getArray('array');
-      const map3 = doc3.getMap('map');
-
-      // initialize
-      {
-        array1.push([1]);
-        array1.push([2]);
-        array1.push([3]);
-        const uint8Array = Z.encodeStateAsUpdate(doc1);
-        Z.applyUpdate(doc2, uint8Array);
-        Z.applyUpdate(doc3, uint8Array);
-      }
-
-      let doc1Update;
-      doc1.on('update', (uint8Array, origin, doc, transaction) => {
-        if (origin === 'doc1') {
-          doc1Update = uint8Array;
+        // initialize
+        {
+          array1.push([1]);
+          array1.push([2]);
+          array1.push([3]);
+          const uint8Array = Z.encodeStateAsUpdate(doc1);
+          Z.applyUpdate(doc2, uint8Array);
+          Z.applyUpdate(doc3, uint8Array);
         }
-      });
-      let doc2Update;
-      doc2.on('update', (uint8Array, origin, doc, transaction) => {
-        if (origin === 'doc2') {
-          doc2Update = uint8Array;
+
+        let doc1Update;
+        doc1.on('update', (uint8Array, origin, doc, transaction) => {
+          if (origin === 'doc1') {
+            doc1Update = uint8Array;
+          }
+        });
+        let doc2Update;
+        doc2.on('update', (uint8Array, origin, doc, transaction) => {
+          if (origin === 'doc2') {
+            doc2Update = uint8Array;
+          }
+        });
+
+        doc1.transact(() => {
+          array1.delete(0);
+        }, 'doc1');
+        doc2.transact(() => {
+          array2.delete(2);
+        }, 'doc2');
+
+        if (forward) {
+          Z.applyUpdate(doc3, doc1Update, 'doc1');
+          Z.applyUpdate(doc3, doc2Update, 'doc2');
+        } else {
+          Z.applyUpdate(doc3, doc2Update, 'doc2');
+          Z.applyUpdate(doc3, doc1Update, 'doc1');
         }
-      });
 
-      doc1.transact(() => {
-        array1.delete(0);
-      }, 'doc1');
-      doc2.transact(() => {
-        array2.delete(2);
-      }, 'doc2');
-
-      Z.applyUpdate(doc3, doc1Update, 'doc1');
-      Z.applyUpdate(doc3, doc2Update, 'doc2');
-
-      assert.deepEqual(array3.toJSON(), [2]);
-    });
+        assert.deepEqual(array3.toJSON(), [2]);
+      };
+      it('conflicting array delete different', run(true));
+      it('conflicting array delete different reverse', run(false));
+    }
     {
       const run = forward => function() {
         const doc1 = new Z.Doc();
