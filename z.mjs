@@ -561,7 +561,7 @@ class ZMapSetEvent extends ZMapEvent {
   }
 }
 class ZMapDeleteEvent extends ZMapEvent {
-  constructor(impl, keyPath, key) {
+  constructor(impl, keyPath, key) { // XXX defer impl lookup binding until after rebase in the parse case, since it might not be valie otherwise
     super(impl);
 
     this.keyPath = keyPath;
