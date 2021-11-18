@@ -221,7 +221,12 @@ function zbdecode(uint8Array) {
   }
 }
 
+function zbclone(o) {
+  return zbdecode(zbencode(o));
+}
+
 export {
   zbencode,
   zbdecode,
+  zbclone,
 };
