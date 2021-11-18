@@ -930,9 +930,10 @@ describe('stress test', function() {
     }
   }
   class PacketQueueEntry {
-    constructor(data, delay) {
+    constructor(data, delay, origin) {
       this.data = data;
       this.delay = delay;
+      this.origin = origin;
     }
   }
   class WorldView {
@@ -951,7 +952,7 @@ describe('stress test', function() {
       this.doc.on('update', (uint8Array, origin, doc, transaction) => {
         // decide a packet delay for hte simulation. it must be between 0-5 and a power bias towards lower values.
         const delay = Math.floor(Math.pow(Math.random() * 5, 0.7));
-        this.outPacketQueue.push(new PacketQueueEntry(uint8Array, 0));
+        this.pushPacket(uint8Array, delay, origin || this.playerId);
       });
 
       // listen for players
@@ -996,8 +997,8 @@ describe('stress test', function() {
         throw new Error('unpipe nonexistent packet destination');
       }
     }
-    pushPacket(data, delay = 0) {
-      const e = new PacketQueueEntry(data, delay);
+    pushPacket(data, delay = 0, origin = null) {
+      const e = new PacketQueueEntry(data, delay, origin);
       this.outPacketQueue.push(e);
     }
     update() {
@@ -1008,7 +1009,9 @@ describe('stress test', function() {
             packet.delay--;
           } else {
             for (const packetDestination of this.packetDestinations) {
-              packetDestination.handleData(packet.data);
+              if (packetDestination.playerId !== packet.origin) { // do not route recursively
+                packetDestination.handlePacket(packet);
+              }
             }
             this.outPacketQueue.shift();
           }
@@ -1016,8 +1019,8 @@ describe('stress test', function() {
       };
       _tickPackets();
     }
-    handleData(uint8Array) {
-      Z.applyUpdate(this.doc, uint8Array);
+    handlePacket(packet) {
+      Z.applyUpdate(this.doc, packet.data, packet.origin);
     }
     clone() {
       return new WorldView(this.doc.clone());
