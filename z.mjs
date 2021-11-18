@@ -399,7 +399,7 @@ class ZDoc extends ZEventEmitter {
           if (impl.length > 0) {
             const e = {
               added: new Set([]),
-              deleted: new Set(impl.binding.e),
+              deleted: new Set(impl.binding.e.map(e => bindingsMap.get(e) ?? e)),
               changes: {
                 keys: new Map(),
                 values: new Map(impl.binding.e.map(e => {
@@ -459,7 +459,7 @@ class ZDoc extends ZEventEmitter {
         } else if (impl?.isZArray) {
           if (impl.length > 0) {
             const e = {
-              added: new Set(impl.binding.e),
+              added: new Set(impl.binding.e.map(e => bindingsMap.get(e) ?? e)),
               deleted: new Set([]),
               changes: {
                 keys: new Map(),
