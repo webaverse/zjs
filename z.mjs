@@ -1215,8 +1215,9 @@ class ZMap extends ZObservable {
     if (Type) {
       let binding = this.binding[k];
       if (binding === undefined) {
-        binding = Type.nativeConstructor();
-        this.binding[k] = binding;
+        // binding = Type.nativeConstructor();
+        // this.binding[k] = binding;
+        throw new Error('map lookup nonexistent typed element');
       }
       let impl = bindingsMap.get(binding);
       if (!impl) {
