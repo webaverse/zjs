@@ -1067,17 +1067,22 @@ class ZDoc extends ZEventEmitter {
   getImplByKeyPath(keyPath) {
     let binding = this.state;
     let impl = bindingsMap.get(binding);
-    for (const [key, type] of keyPath) {
+    for (let [key, type] of keyPath) {
       let value = binding[key];
       
       const child = (() => {
         switch (type) {
           case 'a': return impl.get(key, ZArray);
           case 'm': return impl.get(key, ZMap);
-          case 'e': {
-            const zid = key;
-            const index = impl.binding.i.indexOf(zid);
-            return impl.binding.e[index];
+          case 'ea':
+          case 'em':
+          case 'ev': {
+            switch (type.slice(1)) {
+              case 'a': return impl.getId(key, ZArray);
+              case 'm': return impl.getId(key, ZMap);
+              case 'v': return impl.getId(key);
+              default: return null;
+            }
           }
           case 'v': return impl.get(key);
           default: return null;
@@ -1159,7 +1164,9 @@ class ZObservable {
         } else if (parentImpl.isZArray) {
           const index = parentImpl.binding.e.indexOf(binding);
           const zid = parentImpl.binding.i[index];
-          keyPath.push([zid, 'e']);
+          const impl = bindingsMap.get(binding);
+          const type = 'e' + (_getImplKeyType(impl) || 'v');
+          keyPath.push([zid, type]);
         } else if (parentImpl.isZMap) {
           const keys = Object.keys(parentBinding);
           const matchingKeys = keys.filter(k => parentBinding[k] === binding);
@@ -1363,6 +1370,27 @@ class ZArray extends ZObservable {
   }
   get(index) {
     return this.binding.e[index];
+  }
+  getId(zid, Type) {
+    if (Type) {
+      const index = this.binding.i.indexOf(zid);
+      let binding = this.binding.e[index];
+      if (binding === undefined) {
+        // binding = Type.nativeConstructor();
+        // this.state[k] = binding;
+        throw new Error('array lookup nonexistent element');
+      }
+      let impl = bindingsMap.get(binding);
+      if (!impl) {
+        impl = new Type(binding, this);
+        bindingsMap.set(binding, impl);
+        bindingParentsMap.set(binding, this.state);
+      }
+      return impl;
+    } else {
+      const index = this.binding.i.indexOf(zid);
+      return this.binding.e[index];
+    }
   }
   push(arr) {
     if (arr.length !== 1) {
