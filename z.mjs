@@ -1595,7 +1595,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
 
     doc.history.push.apply(doc.history, transactionCache.events);
     
-    if (doc.clock !== transactionCache.startClock + transactionCache.events.length) {
+    /* if (doc.clock !== transactionCache.startClock + transactionCache.events.length) {
       const errorSpec = {
         docClock: doc.clock,
         expectedClock: transactionCache.startClock + transactionCache.events.length,
@@ -1605,7 +1605,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
       };
       console.warn('clock out of sync', errorSpec);
       throw new Error('clock out of sync');
-    }
+    } */
   };
   switch (method) {
     case MESSAGES.STATE_RESET: {
