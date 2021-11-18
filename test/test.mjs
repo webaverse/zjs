@@ -316,11 +316,6 @@ describe('sync', function() {
       const map3 = doc3.getMap('map');
       const array3 = doc3.getArray('array');
       
-      /* map1.id = 1;
-      map2.id = 2;
-      map3.id = 3;
-      array3.id = 4; */
-      
       map1.set('key', 'value');
       array1.push([7]);
       
