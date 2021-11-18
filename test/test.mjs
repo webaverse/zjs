@@ -1027,6 +1027,7 @@ describe('stress test', function() {
     constructor() {
       super();
       
+      this.playerId = 'server';
       const appsArray = this.doc.getArray('world.apps');
       this.appManager = new AppManager(appsArray);
     }
