@@ -185,6 +185,11 @@ class TransactionCache {
   pushEvent(event) {
     this.events.push(event);
   }
+  bindEvents() {
+    for (const event of this.events) {
+      event.bind(this.doc);
+    }
+  }
   rebase(historyTail) {
     const rebasedEvents = this.events.map(event => {
       if (event.isZMapSetEvent || event.isZMapDeleteEvent) {
