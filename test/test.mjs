@@ -178,21 +178,6 @@ describe('api limits', function() {
       assert.equal(numThrows, 1);
     }
   });
-  it('repeat map insert', function() {
-    const doc = new Z.Doc();
-    const map = doc.getMap('map');
-    const array = new Z.Array();
-    
-    map.set('lol', array);
-    
-    let numThrows = 0;
-    try {
-      map.set('lol', array);
-    } catch (err) {
-      numThrows++;
-    }
-    assert.equal(numThrows, 1);
-  });
 });
 
 describe('complex data', function() {
