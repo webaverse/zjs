@@ -1047,7 +1047,7 @@ describe('stress test', function() {
     constructor() {
       super();
       
-      this.playerId = _makeId();
+      this.playerId = 'player.' + _makeId();
       const playersArray = this.getPlayersArray();
       const localPlayerMap = new Z.Map();
       localPlayerMap.set('playerId', this.playerId);
