@@ -416,7 +416,7 @@ describe('sync', function() {
     });
   });
   describe('non-conflicting transactions', function() {
-    const arrayMap = forward => function() {
+    const run = forward => function() {
       const doc1 = new Z.Doc();
       const array1 = doc1.getArray('array');
       const map1 = doc1.getMap('map');
@@ -482,8 +482,8 @@ describe('sync', function() {
       assert.equal(doc2.clock, 2);
       assert.equal(doc3.clock, 2);
     }
-    it('array + map', arrayMap(true));
-    it('array + map reverse order', arrayMap(false));
+    it('array + map', run(true));
+    it('array + map reverse order', run(false));
   });
   describe('conflicting transactions', function() {
     it('conflicting array push delete', () => {
@@ -699,99 +699,109 @@ describe('sync', function() {
         }
       ]);
     });
-    it('conflicting deep map > array', () => {
-      const doc1 = new Z.Doc();
-      doc1.setResolvePriority(1);
-      const map1 = doc1.getMap('map');
-      
-      const doc2 = new Z.Doc();
-      doc2.setResolvePriority(1);
-      const map2 = doc2.getMap('map');
-      
-      const doc3 = new Z.Doc();
-      doc3.setResolvePriority(0);
-      const map3 = doc3.getMap('map');
-
-      const array11 = new Z.Array();
-      const array12 = new Z.Array();
-      const array13 = new Z.Array();
-      
-      const array21 = new Z.Array();
-      const array22 = new Z.Array();
-      const array23 = new Z.Array();
-
-      // initialize
-      {
-        map1.set('array1', array11);
-        map1.set('array2', array12);
-        map1.set('array3', array13);
+    
+    {
+      const run = forward => function() {
+        const doc1 = new Z.Doc();
+        doc1.setResolvePriority(1);
+        const map1 = doc1.getMap('map');
         
-        map2.set('array1', array21);
-        map2.set('array2', array22);
-        map2.set('array3', array23);
+        const doc2 = new Z.Doc();
+        doc2.setResolvePriority(1);
+        const map2 = doc2.getMap('map');
         
-        array11.push([1]);
-        array11.push([2]);
-        array11.push([3]);
-        
-        array12.push([4]);
-        array12.push([5]);
-        array12.push([6]);
-        
-        array13.push([7]);
-        array13.push([8]);
-        array13.push([9]);
-        
-        const uint8Array = Z.encodeStateAsUpdate(doc1);
-        Z.applyUpdate(doc2, uint8Array);
-        Z.applyUpdate(doc3, uint8Array);
-      }
-
-      let doc1Update;
-      doc1.on('update', (uint8Array, origin, doc, transaction) => {
-        if (origin === 'doc1') {
-          doc1Update = uint8Array;
-        }
-      });
-      let doc2Update;
-      doc2.on('update', (uint8Array, origin, doc, transaction) => {
-        if (origin === 'doc2') {
-          doc2Update = uint8Array;
-        }
-      });
-
-      doc1.transact(() => {
-        map1.set('array1', 42);
-        map1.set('array1', 20);
-        map1.delete('array1');
-        map1.set('array1', null);
-      }, 'doc1');
-      doc2.transact(() => {
-        array21.delete(0);
-        array21.push([100]);
-        array21.delete(2);
-        array21.push([100]);
-        array21.push([101]);
-        array21.delete(0);
-      }, 'doc2');
-
-      Z.applyUpdate(doc3, doc1Update, 'doc1');
-      Z.applyUpdate(doc3, doc2Update, 'doc2');
-      
-      {
+        const doc3 = new Z.Doc();
+        doc3.setResolvePriority(0);
         const map3 = doc3.getMap('map');
-        const array31 = map3.get('array1');
-        const array32 = map3.get('array2', Z.Array);
-        const array33 = map3.get('array3', Z.Array);
-      }
 
-      assert.deepEqual(doc3.toJSON(), {
-        map: {
-          array1: null,
-          array2: [4, 5, 6],
-          array3: [7, 8, 9],
-        },
-      });
-    });
+        const array11 = new Z.Array();
+        const array12 = new Z.Array();
+        const array13 = new Z.Array();
+        
+        const array21 = new Z.Array();
+        const array22 = new Z.Array();
+        const array23 = new Z.Array();
+
+        // initialize
+        {
+          map1.set('array1', array11);
+          map1.set('array2', array12);
+          map1.set('array3', array13);
+          
+          map2.set('array1', array21);
+          map2.set('array2', array22);
+          map2.set('array3', array23);
+          
+          array11.push([1]);
+          array11.push([2]);
+          array11.push([3]);
+          
+          array12.push([4]);
+          array12.push([5]);
+          array12.push([6]);
+          
+          array13.push([7]);
+          array13.push([8]);
+          array13.push([9]);
+          
+          const uint8Array = Z.encodeStateAsUpdate(doc1);
+          Z.applyUpdate(doc2, uint8Array);
+          Z.applyUpdate(doc3, uint8Array);
+        }
+
+        let doc1Update;
+        doc1.on('update', (uint8Array, origin, doc, transaction) => {
+          if (origin === 'doc1') {
+            doc1Update = uint8Array;
+          }
+        });
+        let doc2Update;
+        doc2.on('update', (uint8Array, origin, doc, transaction) => {
+          if (origin === 'doc2') {
+            doc2Update = uint8Array;
+          }
+        });
+
+        doc1.transact(() => {
+          map1.set('array1', 42);
+          map1.set('array1', 20);
+          map1.delete('array1');
+          map1.set('array1', null);
+        }, 'doc1');
+        doc2.transact(() => {
+          array21.delete(0);
+          array21.push([100]);
+          array21.delete(2);
+          array21.push([100]);
+          array21.push([101]);
+          array21.delete(0);
+        }, 'doc2');
+
+        if (forward) {
+          Z.applyUpdate(doc3, doc1Update, 'doc1');
+          Z.applyUpdate(doc3, doc2Update, 'doc2');
+        } else {
+          Z.applyUpdate(doc3, doc2Update, 'doc2');
+          Z.applyUpdate(doc3, doc1Update, 'doc1');
+        }
+        
+        {
+          const map3 = doc3.getMap('map');
+          const array31 = map3.get('array1');
+          const array32 = map3.get('array2', Z.Array);
+          const array33 = map3.get('array3', Z.Array);
+        }
+
+        assert.deepEqual(doc3.toJSON(), {
+          map: {
+            array1: null,
+            array2: [4, 5, 6],
+            array3: [7, 8, 9],
+          },
+        });
+      };
+      it('conflicting deep map > array', run(true));
+      it('conflicting deep map > array reverse', run(false));
+    }
   });
 });
