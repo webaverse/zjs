@@ -1,6 +1,7 @@
 import {
   zbencode,
   zbdecode,
+  zbclone,
 } from './encoding.mjs';
 import {align4} from './util.mjs';
 
@@ -325,12 +326,12 @@ class TransactionCache {
 }
 
 class ZDoc extends ZEventEmitter {
-  constructor() {
+  constructor(state = {}, clock = 0, history = []) {
     super();
 
-    this.state = {};
-    this.clock = 0;
-    this.history = [];
+    this.state = state;
+    this.clock = clock;
+    this.history = history;
     this.transactionDepth = 0;
     this.transactionCache = null;
     this.resolvePriority = _makeId();
@@ -596,6 +597,15 @@ class ZDoc extends ZEventEmitter {
       }
     }
     return impl;
+  }
+  clone() {
+    return new ZDoc(
+      zbclone(this.state),
+      this.clock,
+      this.history.map(e => {
+        return e.clone();
+      })
+    );
   }
 }
 
