@@ -1,5 +1,6 @@
 import assert from 'assert';
 import Z from '../z.mjs';
+import alea from 'alea';
 
 describe('zbencode + zbdecode', function() {
   describe('basic', function() {
@@ -884,5 +885,127 @@ describe('sync', function() {
       it('conflicting deep map > array', run(true));
       it('conflicting deep map > array reverse', run(false));
     }
+  });
+});
+describe('stress test', function() {
+  const _makeId = () => Math.random().toString(36).substr(2, 5);
+  const rng = new alea('lol');
+  
+  class Simulation {
+    constructor() {
+      this.server = new ServerWorldView();
+      this.clients = [];
+    }
+    update() {
+      // add/remove players
+      {      
+        const r = rng();
+        if (r < 1/3) {
+          const client = new ClientWorldView();
+          const uint8Array = Z.encodeStateAsUpdate(this.server.doc);
+          Z.applyUpdate(client.doc, uint8Array);
+          this.clients.push(client);
+        } else if (r < 2/3) {
+          if (this.clients.length > 0) {
+            const index = Math.floor(rng() * this.clients.length);
+            const client = this.clients[index];
+            this.server.clearPlayer(client.playerId);
+            this.clients.splice(index, 1);
+          }
+        }
+      }
+      // tick all clients
+      {
+        for (const client of this.clients) {
+          client.update();
+        }
+      }
+      // tick server
+      {
+        this.server.update();
+      }
+    }
+    flushAndVerify() {
+      // XXX
+    }
+  }
+  class AppManager {
+    constructor(appsArray) {
+      this.appsArray = appsArray;
+    }
+    update() {
+      // XXX
+    }
+  }
+  class WorldView {
+    constructor() {
+      this.doc = new Z.Doc();
+      this.appManager = null;
+      this.remotePlayers = [];
+    }
+    update() {
+      this.appManager.update();
+    }
+    getPlayersArray() {
+      return this.doc.getArray('players');
+    }
+  }
+  class ServerWorldView extends WorldView {
+    constructor() {
+      super();
+      
+      const appsArray = this.doc.getArray('world.apps');
+      this.appManager = new AppManager(appsArray);
+    }
+    clearPlayer(playerId) {
+      const playerIndex = this.remotePlayers.findIndex(player => {
+        return playerId === client.playerId;
+      });
+      if (playerIndex !== -1) {
+        const playersArray = this.getPlayersArray();
+        playersArray.delete(playerIndex);
+      } /* else {
+        throw new Error('failed to clear player: ' + playerId);
+      } */
+    }
+  }
+  class ClientWorldView extends WorldView {
+    constructor() {
+      super();
+      
+      this.playerId = _makeId();
+      const playersArray = this.getPlayersArray();
+      const localPlayerMap = new Z.Map();
+      localPlayerMap.set('playerId', this.playerId);
+      localPlayerMap.set('position', Float32Array.from([0, 0, 0]));
+      const appsArray = new Z.Array();
+      localPlayerMap.set('apps', appsArray);
+      playersArray.push([localPlayerMap]);
+      this.localPlayer = new Player(localPlayerMap);
+      this.appManager = new AppManager(appsArray);
+    }
+  }
+  class Player {
+    constructor(playerMap) {
+      this.playerMap = playerMap;
+      const appsArray = playerMap.get('apps', Z.Array);
+      this.appManager = new AppManager(appsArray);
+    }
+    get playerId() {
+      return this.playerMap.get('playerId');
+    }
+    set playerId(playerId) {
+      this.playerMap.set('playerId', playerId);
+    }
+  }
+  const _stressTest = (numIterations = 1) => {
+    const simulation = new Simulation();
+    for (let i = 0; i < numIterations; i++) {
+      simulation.update();
+    }
+    simulation.flushAndVerify();
+  };
+  it('should survive 100 iterations', function() {
+    _stressTest(100);
   });
 });
