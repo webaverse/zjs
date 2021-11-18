@@ -1072,19 +1072,19 @@ class ZDoc extends ZEventEmitter {
               case 'a': return impl.getId(key, ZArray);
               case 'm': return impl.getId(key, ZMap);
               case 'v': return impl.getId(key);
-              default: return null;
+              default: return undefined;
             }
           }
           case 'v': return impl.get(key);
-          default: return null;
+          default: return undefined;
         }
       })();
       if (child) {
         impl = child;
-        binding = child.binding ?? null;
+        binding = child.binding;
       } else {
         // console.warn('could not look up key path', [key, type], impl);
-        return null;
+        return undefined;
       }
     }
     return impl;
