@@ -48,7 +48,7 @@ const _jsonify = o => {
   }
 };
 const _getBindingForValue = e => {
-  if (e.isZMap || e.isZArray) {
+  if (e?.isZMap || e?.isZArray) {
     return e.binding;
   } else {
     return e;
