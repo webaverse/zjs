@@ -563,11 +563,8 @@ class ZMapSetEvent extends ZMapEvent {
     const value = zbdecode(vb);
     index += vbLength;
     index = align4(index);
-    
-    // const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
-    
+
     return new this(
-      // impl,
       keyPath,
       key,
       value
@@ -649,10 +646,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     index += kbLength;
     index = align4(index);
     
-    // const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
-    
     return new this(
-      // impl,
       keyPath,
       key
     );
@@ -739,10 +733,7 @@ class ZArrayPushEvent extends ZArrayEvent {
     index += arrLength;
     index = align4(index);
     
-    // const impl = doc.getImplByKeyPath(keyPath.slice(0, -1));
-    
     return new this(
-      // impl,
       keyPath,
       arr
     );
