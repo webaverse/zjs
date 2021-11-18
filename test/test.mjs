@@ -942,6 +942,25 @@ describe('stress test', function() {
       this.doc = new Z.Doc();
       this.appManager = null;
       this.remotePlayers = [];
+      
+      const playersArray = this.getPlayersArray();
+      playersArray.observe(e => {
+        for (const oldPlayerMap of e.deleted) {
+          const playerId = oldPlayerMap.get('playerId');
+          const index = this.remotePlayers.findIndex(player => player.playerId);
+          if (index !== -1) {
+            const oldPlayer = this.remotePlayers[index];
+            oldPlayer.destroy();
+            this.remotePlayers.splice(index, 1);
+          } else {
+            throw new Error('delete nonexistent player: ' + playerId);
+          }
+        }
+        for (const newPlayerMap of e.added) {
+          const newPlayer = new Player(newPlayerMap);
+          this.remotePlayers.push(newPlayer);
+        }
+      });
     }
     update() {
       this.appManager.update();
@@ -997,6 +1016,9 @@ describe('stress test', function() {
     set playerId(playerId) {
       this.playerMap.set('playerId', playerId);
     }
+    destroy() {
+      // XXX
+    }
   }
   const _stressTest = (numIterations = 1) => {
     const simulation = new Simulation();
@@ -1005,7 +1027,7 @@ describe('stress test', function() {
     }
     simulation.flushAndVerify();
   };
-  it('should survive 100 iterations', function() {
-    _stressTest(100);
+  it('should survive 1000 iterations', function() {
+    _stressTest(1000);
   });
 });
