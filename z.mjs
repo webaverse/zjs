@@ -398,16 +398,23 @@ class ZDoc extends ZEventEmitter {
           }
         } else if (impl.isZArray) {
           if (impl.length > 0) {
+            const indexes = [];
+            for (let i = 0; i < impl.length; i++) {
+              indexes.push(i);
+            }
+
             const e = {
               added: new Set([]),
-              deleted: new Set(impl.binding.e.map(e => bindingsMap.get(e) ?? e)),
+              deleted: new Set(indexes),
               changes: {
-                keys: new Map(),
-                values: new Map(impl.binding.e.map(e => {
+                keys: new Map(indexes.map(index => {
+                  let value = impl.binding.e[index];
+                  value = bindingsMap.get(value) ?? value;
                   return [
-                    e,
+                    index,
                     {
                       action: 'delete',
+                      value,
                     },
                   ];
                 })),
@@ -422,19 +429,21 @@ class ZDoc extends ZEventEmitter {
         } else if (impl.isZMap) {
           const keys = Array.from(impl.keys());
           if (keys.length > 0) {
+            const values = Array.from(impl.values());
             const e = {
               added: new Set([]),
               deleted: new Set(keys),
               changes: {
-                keys: new Map(keys.map(key => {
+                keys: new Map(keys.map((key, index) => {
+                  const value = values[index];
                   return [
                     key,
                     {
                       action: 'delete',
+                      value,
                     },
                   ];
                 })),
-                values: new Map(),
               },
             };
             impl.triggerObservers(e);
@@ -459,16 +468,22 @@ class ZDoc extends ZEventEmitter {
           }
         } else if (impl?.isZArray) {
           if (impl.length > 0) {
+            const indexes = [];
+            for (let i = 0; i < impl.binding.e.length; i++) {
+              indexes.push(i);
+            }
+
             const e = {
-              added: new Set(impl.binding.e.map(e => bindingsMap.get(e) ?? e)),
+              added: new Set(indexes),
               deleted: new Set([]),
               changes: {
-                keys: new Map(),
-                values: new Map(impl.binding.e.map(e => {
+                keys: new Map(indexes.map(index => {
+                  const value = impl.binding.e[index];
                   return [
-                    e,
+                    index,
                     {
                       action: 'add',
+                      value,
                     },
                   ];
                 })),
@@ -483,19 +498,21 @@ class ZDoc extends ZEventEmitter {
         } else if (impl?.isZMap) {
           const keys = Array.from(impl.keys());
           if (keys.length > 0) {
+            const values = Array.from(impl.values());
             const e = {
               added: new Set(keys),
               deleted: new Set([]),
               changes: {
-                keys: new Map(keys.map(key => {
+                keys: new Map(keys.map((key, index) => {
+                  const value = values[index];
                   return [
                     key,
                     {
                       action: 'add',
+                      value,
                     },
                   ];
                 })),
-                values: new Map(),
               },
             };
             impl.triggerObservers(e);
@@ -618,10 +635,24 @@ const _getImplKeyType = impl => {
     return null;
   }
 };
+const _getImplConstructorForKeyType = type => {
+  if (/m$/.test(type)) {
+    return ZMap;
+  } else if (/a$/.test(type)) {
+    return ZArray;
+  } else {
+    return null;
+  }
+};
 class ZObservable {
   constructor(binding, doc) {
     this.binding = binding;
     this.doc = doc;
+
+    if (binding) {
+      bindingsMap.set(binding, this);
+      // bindingParentsMap.set(binding, doc.state);
+    }
   }
   observe(fn) {
     let observers = observersMap.get(this);
@@ -709,18 +740,13 @@ const _ensureImplBound = (v, parent) => {
     v?.isZMap ||
     v?.isZArray
   ) {
-    const impl = bindingsMap.get(v.binding);
-    if (!impl) {
-      bindingsMap.set(v.binding, v);
-      bindingParentsMap.set(v.binding, parent.binding);
-      v.doc = parent.doc;
-    } else {
-      throw new Error('already bound');
-    }
+    bindingsMap.set(v.binding, v);
+    bindingParentsMap.set(v.binding, parent.binding);
+    v.doc = parent.doc;
   }
 };
 class ZMap extends ZObservable {
-  constructor(binding = ZMap.nativeConstructor(), doc = null) {
+  constructor(binding = ZMap.nativeConstructor(), doc = new Z.Doc()) {
     super(binding, doc);
     
     this.isZMap = true;
@@ -863,7 +889,7 @@ class ZMap extends ZObservable {
 }
 
 class ZArray extends ZObservable {
-  constructor(binding = ZArray.nativeConstructor(), doc = null) {
+  constructor(binding = ZArray.nativeConstructor(), doc = new Z.Doc()) {
     super(binding, doc);
     
     this.isZArray = true;
@@ -878,12 +904,8 @@ class ZArray extends ZObservable {
   set length(length) {
     this.binding.e.length = length;
   }
-  get(index) {
-    return this.binding.e[index];
-  }
-  getId(zid, Type) {
+  get(index, Type) {
     if (Type) {
-      const index = this.binding.i.indexOf(zid);
       let binding = this.binding.e[index];
       if (binding === undefined) {
         // binding = Type.nativeConstructor();
@@ -898,12 +920,15 @@ class ZArray extends ZObservable {
       }
       return impl;
     } else {
-      const index = this.binding.i.indexOf(zid);
-      if (index !== -1) {
-        return this.binding.e[index];
-      } else {
-        return undefined;
-      }
+      return this.binding.e[index];
+    }
+  }
+  getId(zid, Type) {
+    const index = this.binding.i.indexOf(zid);
+    if (index !== -1) {
+      return this.get(index, Type);
+    } else {
+      return undefined;
     }
   }
   push(arr) {
@@ -916,7 +941,7 @@ class ZArray extends ZObservable {
     const zid = _makeId();
     
     const keyPath = this.getKeyPath();
-    const impl = bindingsMap.get(arr[0]);
+    const impl = bindingsMap.get(arr[0]) ?? arr[0];
     const type = 'e' + (_getImplKeyType(impl) || 'v');
     keyPath.push([zid, type]);
     const event = new ZArrayPushEvent(
@@ -1020,38 +1045,22 @@ class ZEvent {
   getEvent() {
     const actionSpec = this.getAction();
     if (actionSpec) {
-      if (actionSpec.key) {
-        return {
-          added: new Set(/add|update/.test(actionSpec.action) ? [actionSpec.key] : []),
-          deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []),
-          changes: {
-            keys: new Map([[
-              actionSpec.key,
-              {
-                action: actionSpec.action,
-              },
-            ]]),
-            values: new Map(),
-          },
-        };
-      } else if (actionSpec.value) {
-        return {
-          added: new Set(/add|update/.test(actionSpec.action) ? [actionSpec.value] : []),
-          deleted: new Set(actionSpec.action === 'delete' ? [actionSpec.value] : []),
-          changes: {
-            keys: new Map(),
-            values: new Map([[
-              actionSpec.value,
-              {
-                action: actionSpec.action,
-              },
-            ]]),
-          },
-        };
-      } else {
-        console.warn('unknown action spec format', actionSpec, new Error().stack);
-        return null;
-      }
+      const added = new Set(/add|update/.test(actionSpec.action) ? [actionSpec.key] : []);
+      const deleted = new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []);
+      const value = bindingsMap.get(actionSpec.value) ?? actionSpec.value;
+      return {
+        added,
+        deleted,
+        changes: {
+          keys: new Map([[
+            actionSpec.key,
+            {
+              action: actionSpec.action,
+              value,
+            },
+          ]]),
+        },
+      };
     } else {
       return null;
     }
@@ -1168,20 +1177,20 @@ class ZMapSetEvent extends ZMapEvent {
     super(keyPath);
     
     this.key = key;
-    this.value = value;
+    this.value = _getBindingForValue(value);
     
     this.isZMapSetEvent = true;
   }
   static METHOD = ++zEventsIota;
   static Type = ZMap;
   apply() {
-    const valueBinding = _getBindingForValue(this.value);
-    this.impl.binding[this.key] = valueBinding;
+    this.impl.binding[this.key] = this.value;
   }
   getAction() {
     return {
       action: 'update',
       key: this.key,
+      value: this.value,
     };
   }
   computeUpdateByteLength() {
@@ -1271,18 +1280,21 @@ class ZMapDeleteEvent extends ZMapEvent {
     super(keyPath);
 
     this.key = key;
+    this.oldValue = null;
     
     this.isZMapDeleteEvent = true;
   }
   static METHOD = ++zEventsIota;
   static Type = ZMap;
   apply() {
+    this.oldValue = this.impl.binding[this.key];
     delete this.impl.binding[this.key];
   }
   getAction() {
     return {
-      action: 'update',
+      action: 'delete',
       key: this.key,
+      value: this.oldValue,
     };
   }
   computeUpdateByteLength() {
@@ -1352,7 +1364,8 @@ class ZArrayPushEvent extends ZArrayEvent {
   constructor(keyPath, arr) {
     super(keyPath);
 
-    this.arr = arr;
+    this.arr = _getBindingForArray(arr);
+    this.index = -1;
     
     this.isZArrayPushEvent = true;
   }
@@ -1360,13 +1373,39 @@ class ZArrayPushEvent extends ZArrayEvent {
   static Type = ZArray;
   apply() {
     const arrBinding = _getBindingForArray(this.arr);
+    this.index = this.impl.binding.e.length;
     this.impl.binding.e.push.apply(this.impl.binding.e, arrBinding);
     const zid = this.keyPath[this.keyPath.length - 1][0];
     this.impl.binding.i.push(zid);
+
+    const keyType = this.keyPath[this.keyPath.length - 1][1];
+    const Type = _getImplConstructorForKeyType(keyType);
+    const value = this.arr[0];
+    let impl = bindingsMap.get(value);
+    if (Type && !(impl instanceof Type)) {
+      const binding = value;
+      impl = new Type(binding, this.impl.doc);
+      bindingsMap.set(binding, impl);
+      bindingParentsMap.set(binding, this.impl.binding);
+      // console.log('forge array value during apply', binding, impl);
+    }
   }
   getAction() {
+    const keyType = this.keyPath[this.keyPath.length - 1][1];
+    const Type = _getImplConstructorForKeyType(keyType);
+    const value = this.arr[0];
+    let impl = bindingsMap.get(value);
+    if (Type && !(impl instanceof Type)) {
+      const binding = value;
+      impl = new Type(binding, this.impl.doc);
+      bindingsMap.set(binding, impl);
+      bindingParentsMap.set(binding, this.impl.binding);
+      // console.log('forge array value during change event emit', binding, impl);
+    }
+
     return {
       action: 'add',
+      key: this.index,
       value: this.arr[0],
     };
   }
@@ -1440,6 +1479,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
   constructor(keyPath) {
     super(keyPath);
 
+    this.index = -1;
     this.oldValue = null;
     
     this.isZArrayDeleteEvent = true;
@@ -1448,13 +1488,14 @@ class ZArrayDeleteEvent extends ZArrayEvent {
   static Type = ZArray;
   apply() {
     const zid = this.keyPath[this.keyPath.length - 1][0];
-    const index = this.impl.binding.i.indexOf(zid);
-    this.oldValue = this.impl.binding.e.splice(index, 1)[0];
-    this.impl.binding.i.splice(index, 1);
+    this.index = this.impl.binding.i.indexOf(zid);
+    this.oldValue = this.impl.binding.e.splice(this.index, 1)[0];
+    this.impl.binding.i.splice(this.index, 1);
   }
   getAction() {
     return {
       action: 'delete',
+      key: this.index,
       value: this.oldValue,
     };
   }
