@@ -1090,6 +1090,6 @@ describe('stress test', function() {
     }
   };
   it('should survive 1000 iterations', function() {
-    _stressTest(1000);
+    _stressTest(100);
   });
 });
