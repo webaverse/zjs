@@ -135,7 +135,7 @@ const _keyPathEquals = (a, b) => {
     for (let i = 0; i < a.length; i++) {
       const ae = a[i];
       const be = b[i];
-      if (ae[0] !== be[0] || ae[1] !== be[1]) {
+      if (ae[0] !== be[0] /*|| ae[1] !== be[1]*/) {
         return false;
       }
     }
@@ -149,7 +149,7 @@ const _isKeyPathPrefix = (a, b) => {
     for (let i = 0; i < a.length; i++) {
       const ae = a[i];
       const be = b[i];
-      if (ae[0] !== be[0] || ae[1] !== be[1]) {
+      if (ae[0] !== be[0] /*|| ae[1] !== be[1]*/) {
         return false;
       }
     }
