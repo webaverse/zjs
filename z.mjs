@@ -19,6 +19,8 @@ export const TRANSACTION_TYPES = {
   arrayRemove: Symbol('arrayRemove'),
 };
 
+// XXX can use a power-of-two buffer cache for memory
+
 const _makeId = () => Math.round(Math.random() * 0xFFFFFF);
 const _jsonify = o => {
   const impl = bindingsMap.get(o);
