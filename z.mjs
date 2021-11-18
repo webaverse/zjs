@@ -1596,7 +1596,14 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
     doc.history.push.apply(doc.history, transactionCache.events);
     
     if (doc.clock !== transactionCache.startClock + transactionCache.events.length) {
-      console.warn('clock out of sync', doc.clock, transactionCache.startClock + transactionCache.events.length);
+      const errorSpec = {
+        docClock: doc.clock,
+        expectedClock: transactionCache.startClock + transactionCache.events.length,
+        transactionStartClock: transactionCache.startClock,
+        transactionNumEvents: transactionCache.events.length,
+        transactionEvents: transactionCache.events,
+      };
+      console.warn('clock out of sync', errorSpec);
       throw new Error('clock out of sync');
     }
   };
