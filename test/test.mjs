@@ -872,9 +872,9 @@ describe('stress test', function() {
   const rng = new alea('lol');
   
   class Simulation {
-    constructor() {
-      this.server = new ServerWorldView();
-      this.clients = [];
+    constructor(server = new ServerWorldView(), clients = []) {
+      this.server = server;
+      this.clients = clients;
     }
     update() {
       // add/remove players
@@ -885,12 +885,18 @@ describe('stress test', function() {
           const uint8Array = Z.encodeStateAsUpdate(this.server.doc);
           Z.applyUpdate(client.doc, uint8Array);
           this.clients.push(client);
+
+          this.server.pipe(client);
+          client.pipe(this.server);
         } else if (r < 2/3) {
           if (this.clients.length > 0) {
             const index = Math.floor(rng() * this.clients.length);
             const client = this.clients[index];
             this.server.clearPlayer(client.playerId);
             this.clients.splice(index, 1);
+
+            this.server.unpipe(client);
+            client.unpipe(this.server);
           }
         }
       }
@@ -905,8 +911,14 @@ describe('stress test', function() {
         this.server.update();
       }
     }
+    clone() {
+      return new Simulation(
+        this.server.clone(),
+        this.clients.map(client => client.clone())
+      );
+    }
     flushAndVerify() {
-      // XXX
+      
     }
   }
   class AppManager {
@@ -917,26 +929,51 @@ describe('stress test', function() {
       // XXX
     }
   }
+  class PacketQueueEntry {
+    constructor(data, delay) {
+      this.data = data;
+      this.delay = delay;
+    }
+  }
   class WorldView {
-    constructor() {
-      this.doc = new Z.Doc();
+    constructor(doc = new Z.Doc()) {
+      this.doc = doc;
       this.appManager = null;
       this.remotePlayers = [];
+
+      // packet buffer
+      this.packetDestinations = [];
+      this.outPacketQueue = [];
       
+      // listeners
+
+      // listen for local data spout
+      this.doc.on('update', (uint8Array, origin, doc, transaction) => {
+        // decide a packet delay for hte simulation. it must be between 0-5 and a power bias towards lower values.
+        const delay = Math.floor(Math.pow(Math.random() * 5, 0.7));
+        this.outPacketQueue.push(new PacketQueueEntry(uint8Array, 0));
+      });
+
+      // listen for players
       const playersArray = this.getPlayersArray();
       playersArray.observe(e => {
-        for (const oldPlayerMap of e.deleted) {
+        // console.log('got deleted', deleted);
+        for (const index of e.deleted) {
+          // console.log('check changes', e.changes?.keys);
+          const oldPlayerMap = e.changes.keys.get(index).value;
           const playerId = oldPlayerMap.get('playerId');
-          const index = this.remotePlayers.findIndex(player => player.playerId);
-          if (index !== -1) {
-            const oldPlayer = this.remotePlayers[index];
+          const oldPlayerIndex = this.remotePlayers.findIndex(player => player.playerId);
+          if (oldPlayerIndex !== -1) {
+            const oldPlayer = this.remotePlayers[oldPlayerIndex];
             oldPlayer.destroy();
-            this.remotePlayers.splice(index, 1);
+            this.remotePlayers.splice(oldPlayerIndex, 1);
           } else {
             throw new Error('delete nonexistent player: ' + playerId);
           }
         }
-        for (const newPlayerMap of e.added) {
+        for (const newKey of e.added) {
+          const newPlayerMap = playersArray.get(newKey, Z.Map);
+          // console.log('got new player', newKey, newPlayerMap);
           const newPlayer = new Player(newPlayerMap);
           this.remotePlayers.push(newPlayer);
         }
@@ -948,6 +985,43 @@ describe('stress test', function() {
     getPlayersArray() {
       return this.doc.getArray('players');
     }
+    pipe(packetDestination) {
+      this.packetDestinations.push(packetDestination);
+    }
+    unpipe(packetDestination) {
+      const index = this.packetDestinations.indexOf(packetDestination);
+      if (index !== -1) {
+        this.packetDestinations.splice(index, 1);
+      } else {
+        throw new Error('unpipe nonexistent packet destination');
+      }
+    }
+    pushPacket(data, delay = 0) {
+      const e = new PacketQueueEntry(data, delay);
+      this.outPacketQueue.push(e);
+    }
+    update() {
+      const _tickPackets = () => {
+        if (this.outPacketQueue.length > 0) {
+          const packet = this.outPacketQueue[0];
+          if (packet.delay > 0) {
+            packet.delay--;
+          } else {
+            for (const packetDestination of this.packetDestinations) {
+              packetDestination.handleData(packet.data);
+            }
+            this.outPacketQueue.shift();
+          }
+        }
+      };
+      _tickPackets();
+    }
+    handleData(uint8Array) {
+      Z.applyUpdate(this.doc, uint8Array);
+    }
+    clone() {
+      return new WorldView(this.doc.clone());
+    }
   }
   class ServerWorldView extends WorldView {
     constructor() {
@@ -958,7 +1032,7 @@ describe('stress test', function() {
     }
     clearPlayer(playerId) {
       const playerIndex = this.remotePlayers.findIndex(player => {
-        return playerId === client.playerId;
+        return player.playerId === playerId;
       });
       if (playerIndex !== -1) {
         const playersArray = this.getPlayersArray();
@@ -1000,12 +1074,16 @@ describe('stress test', function() {
       // XXX
     }
   }
+  const _check = simulation => {
+    const simulation2 = simulation.clone();
+    simulation2.flushAndVerify();
+  };
   const _stressTest = (numIterations = 1) => {
     const simulation = new Simulation();
     for (let i = 0; i < numIterations; i++) {
       simulation.update();
+      _check(simulation);
     }
-    simulation.flushAndVerify();
   };
   it('should survive 1000 iterations', function() {
     _stressTest(1000);
