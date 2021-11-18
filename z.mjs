@@ -1079,6 +1079,11 @@ class ZEvent {
   static deserializeUpdate(doc, uint8Array) {
     throw new Error('not implemented');
   }
+  clone() {
+    const event = new ZEvent(this.keyPath);
+    event.impl = this.impl;
+    return event;
+  }
 }
 class ZNullEvent extends ZEvent {
   constructor() {
