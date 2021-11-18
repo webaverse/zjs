@@ -648,11 +648,6 @@ class ZObservable {
   constructor(binding, doc) {
     this.binding = binding;
     this.doc = doc;
-
-    if (binding) {
-      bindingsMap.set(binding, this);
-      // bindingParentsMap.set(binding, doc.state);
-    }
   }
   observe(fn) {
     let observers = observersMap.get(this);
