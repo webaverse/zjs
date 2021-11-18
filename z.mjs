@@ -1068,34 +1068,6 @@ class ZEvent {
     throw new Error('not implemented');
   }
 }
-class ZMapEvent extends ZEvent {
-  constructor(keyPath) {
-    super(keyPath);
-  
-    this.keyBuffer = null;
-    this.valueBuffer = null;
-    
-    this.isZMapEvent = true;
-  }
-  getKeyBuffer() {
-    if (this.keyBuffer === null) {
-      this.keyBuffer = textEncoder.encode(this.key);
-    }
-    return this.keyBuffer;
-  }
-  getValueBuffer() {
-    if (this.valueBuffer === null) {
-      this.valueBuffer = zbencode(_getBindingForValue(this.value));
-    }
-    return this.valueBuffer;
-  }
-  gc() {
-    super.gc();
-    
-    this.keyBuffer = null;
-    this.valueBuffer = null;
-  }
-}
 class ZNullEvent extends ZEvent {
   constructor() {
     super([]);
@@ -1124,6 +1096,34 @@ class ZNullEvent extends ZEvent {
   }
   static deserializeUpdate(doc, uint8Array) {
     return new this();
+  }
+}
+class ZMapEvent extends ZEvent {
+  constructor(keyPath) {
+    super(keyPath);
+  
+    this.keyBuffer = null;
+    this.valueBuffer = null;
+    
+    this.isZMapEvent = true;
+  }
+  getKeyBuffer() {
+    if (this.keyBuffer === null) {
+      this.keyBuffer = textEncoder.encode(this.key);
+    }
+    return this.keyBuffer;
+  }
+  getValueBuffer() {
+    if (this.valueBuffer === null) {
+      this.valueBuffer = zbencode(_getBindingForValue(this.value));
+    }
+    return this.valueBuffer;
+  }
+  gc() {
+    super.gc();
+    
+    this.keyBuffer = null;
+    this.valueBuffer = null;
   }
 }
 class ZArrayEvent extends ZEvent {
