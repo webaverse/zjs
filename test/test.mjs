@@ -282,7 +282,7 @@ describe('observers', function() {
         const map = doc.getMap('map');
         let numObserves = 0;
         const observe = e => {
-          assert.deepEqual(e.added, new Set([]));
+          assert.deepEqual(e.added, new Set(['key']));
           assert.deepEqual(e.deleted, new Set([]));
           assert.deepEqual(e.changes, {
             keys: new Map([[
