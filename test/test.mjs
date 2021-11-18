@@ -41,9 +41,10 @@ describe('ZMap', function() {
     const map = new Z.Map();
     
     map.set('key', 'value');
+    assert.equal(map.get('key'), 'value');
     assert.equal(map.get('key2'), undefined);
   });
-  describe('basic', function() {
+  describe('inline', function() {
     it('should support basic operations', function() {
       const doc = new Z.Doc();
       const map = doc.getMap('map');
@@ -65,6 +66,22 @@ describe('ZMap', function() {
       assert.equal(map.get('key2'), 'value2');
     });
   });
+  describe('delayed attach', function() {
+    const map = new Z.Map();
+    map.set('key', 'value');
+    
+    const doc = new Z.Doc();
+    const array = doc.getArray('array');
+    array.push([map]);
+    
+    assert.deepEqual(doc.toJSON(), {
+      array: [
+        {
+          key: 'value',
+        },
+      ],
+    });
+  });
 });
 
 describe('ZArray', function() {
@@ -77,7 +94,7 @@ describe('ZArray', function() {
     assert.equal(array.length, 1);
     assert.deepEqual(array.toJSON(), [1]);
   });
-  describe('basic', function() {
+  describe('inline', function() {
     it('should support basic operations', function() {
       const doc = new Z.Doc();
       const array = doc.getArray('array');
@@ -100,6 +117,20 @@ describe('ZArray', function() {
       assert.equal(array.get(0), 2);
       assert.equal(array.get(1), undefined);
       assert.deepEqual(array.toJSON(), [2]);
+    });
+  });
+  describe('delayed attach', function() {
+    const array = new Z.Array();
+    array.push([1]);
+    
+    const doc = new Z.Doc();
+    const map = doc.getMap('map');
+    map.set('array', array);
+    
+    assert.deepEqual(doc.toJSON(), {
+      map: {
+        array: [1],
+      },
     });
   });
 });
