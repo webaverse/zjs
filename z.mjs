@@ -12,13 +12,6 @@ const MESSAGES = (() => {
     TRANSACTION: ++iota,
   };
 })();
-export const TRANSACTION_TYPES = {
-  null: Symbol('null'),
-  mapSet: Symbol('mapSet'),
-  mapDelete: Symbol('mapDelete'),
-  arrayPush: Symbol('arrayPush'),
-  arrayRemove: Symbol('arrayRemove'),
-};
 
 // XXX can use a power-of-two buffer cache for memory
 
@@ -69,14 +62,14 @@ const _getBindingForArray = arr => arr.map(_getBindingForValue);
   };
 }; */
 const _makeDataView = uint8Array => new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
-const _parseBoundEvent = (doc, encodedEventData) => {
+const _parseBoundEvent = encodedEventData => {
   const dataView = _makeDataView(encodedEventData);
   
   let index = 0;
   const method = dataView.getUint32(index, true);
   const Cons = ZEVENT_CONSTRUCTORS[method];
   if (Cons) {
-    return Cons.deserializeUpdate(doc, encodedEventData);
+    return Cons.deserializeUpdate(encodedEventData);
   } else {
     console.warn('could not parse bound event due to incorrect method', method, ZEVENT_CONSTRUCTORS);
     return null;
@@ -177,8 +170,9 @@ const _alreadyDeleted = (event, historyTail) => historyTail.some(historyEvent =>
   return (historyEvent.isZArrayDeleteEvent) &&
     _keyPathEquals(historyEvent.keyPath, event.keyPath);
 });
+
 class TransactionCache {
-  constructor(doc, origin, startClock = doc.clock, resolvePriority = doc.resolvePriority, events = []) {
+  constructor(doc = null, origin = undefined, startClock = doc.clock, resolvePriority = doc.resolvePriority, events = []) {
     this.doc = doc;
     this.origin = origin;
     this.startClock = startClock;
@@ -293,7 +287,7 @@ class TransactionCache {
     }
     return uint8Array;
   }
-  static deserializeUpdate(doc, uint8Array) {
+  static deserializeUpdate(uint8Array) {
     const dataView = _makeDataView(uint8Array);
     
     let index = 0;
@@ -314,13 +308,13 @@ class TransactionCache {
       index += Uint32Array.BYTES_PER_ELEMENT;
       
       const encodedEventData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, eventLength);
-      const event = _parseBoundEvent(doc, encodedEventData);
+      const event = _parseBoundEvent(encodedEventData);
       events[i] = event;
       index += eventLength;
       index = align4(index);
     }
     
-    const transactionCache = new TransactionCache(doc, undefined, startClock, resolvePriority, events);
+    const transactionCache = new TransactionCache(undefined, undefined, startClock, resolvePriority, events);
     return transactionCache;
   }
 }
@@ -616,13 +610,61 @@ class ZDoc extends ZEventEmitter {
     return impl;
   }
   clone() {
-    return new ZDoc(
-      zbclone(this.state),
+    const oldState = this.state;
+    const newState = zbclone(this.state);
+    const newDoc = new ZDoc(
+      newState,
       this.clock,
-      this.history.map(e => {
-        return e.clone();
-      })
+      this.history.map(e => e.clone()),
     );
+
+    // remap old impls onto new bindings
+    const _recurse = (oldBinding, newBinding) => {
+      const oldImpl = bindingsMap.get(oldBinding);
+      if (oldImpl?.isZDoc) {
+        for (const k in oldBinding) {
+          _recurse(oldBinding[k], newBinding[k]);
+          bindingParentsMap.set(newBinding[k], newBinding);
+        }
+      } else if (oldImpl?.isZArray) {
+        const newImpl = new ZArray(newBinding, newDoc);
+        bindingsMap.set(newBinding, newImpl);
+
+        for (let i = 0; i < oldBinding.e.length; i++) {
+          _recurse(oldBinding.e[i], newBinding.e[i]);
+
+          const childImpl = bindingsMap.get(newBinding.e[i]);
+          if (childImpl) {
+            bindingParentsMap.set(newBinding.e[i], newBinding);
+          }
+        }
+      } else if (oldImpl?.isZMap) {
+        const newImpl = new ZMap(newBinding, newDoc);
+        bindingsMap.set(newBinding, newImpl);
+
+        for (const k in oldBinding) {
+          _recurse(oldBinding[k], newBinding[k]);
+
+          const childImpl = bindingsMap.get(newBinding[k]);
+          if (childImpl) {
+            bindingParentsMap.set(newBinding[k], newBinding);
+          }
+        }
+      } else if (Array.isArray(oldBinding)) {
+        for (let i = 0; i < oldBinding.length; i++) {
+          _recurse(oldBinding[i], newBinding[i]);
+        }
+      } else if (oldBinding !== null && typeof oldBinding === 'object') {
+        for (const k in oldBinding) {
+          _recurse(oldBinding[k], newBinding[k]);
+        }
+      } else {
+        // nothing
+      }
+    };
+    _recurse(oldState, newState);
+
+    return newDoc;
   }
 }
 
@@ -783,7 +825,7 @@ class ZMap extends ZObservable {
     );
     event.bindToImpl(this);
     if (this.doc) {
-      this.doc.pushTransaction(TRANSACTION_TYPES.mapSet);
+      this.doc.pushTransaction();
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -803,7 +845,7 @@ class ZMap extends ZObservable {
     );
     event.bindToImpl(this);
     if (this.doc) {
-      this.doc.pushTransaction(TRANSACTION_TYPES.mapDelete);
+      this.doc.pushTransaction();
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -945,7 +987,7 @@ class ZArray extends ZObservable {
     );
     event.bindToImpl(this);
     if (this.doc) {
-      this.doc.pushTransaction(TRANSACTION_TYPES.arrayPush);
+      this.doc.pushTransaction();
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -969,7 +1011,7 @@ class ZArray extends ZObservable {
     );
     event.bindToImpl(this);
     if (this.doc) {
-      this.doc.pushTransaction(TRANSACTION_TYPES.arrayDelete);
+      this.doc.pushTransaction();
       this.doc.transactionCache.pushEvent(event);
     }
     event.apply();
@@ -1080,7 +1122,7 @@ class ZEvent {
   serializeUpdate(uint8Array) {
     throw new Error('not implemented');
   }
-  static deserializeUpdate(doc, uint8Array) {
+  static deserializeUpdate(uint8Array) {
     throw new Error('not implemented');
   }
   clone() {
@@ -1115,7 +1157,7 @@ class ZNullEvent extends ZEvent {
     dataView.setUint32(index, this.constructor.METHOD, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
   }
-  static deserializeUpdate(doc, uint8Array) {
+  static deserializeUpdate(uint8Array) {
     return new this();
   }
 }
@@ -1234,7 +1276,7 @@ class ZMapSetEvent extends ZMapEvent {
     index += vb.byteLength;
     index = align4(index);
   }
-  static deserializeUpdate(doc, uint8Array) {
+  static deserializeUpdate(uint8Array) {
     const dataView = _makeDataView(uint8Array);
     
     let index = 0;
@@ -1327,7 +1369,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     index += kb.byteLength;
     index = align4(index);
   }
-  static deserializeUpdate(doc, uint8Array) {
+  static deserializeUpdate(uint8Array) {
     const dataView = _makeDataView(uint8Array);
     
     let index = 0;
@@ -1441,7 +1483,7 @@ class ZArrayPushEvent extends ZArrayEvent {
     index += arrb.byteLength;
     index = align4(index);
   }
-  static deserializeUpdate(doc, uint8Array) {
+  static deserializeUpdate(uint8Array) {
     const dataView = _makeDataView(uint8Array);
     
     let index = 0;
@@ -1521,7 +1563,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     index += kpjb.byteLength;
     index = align4(index);
   }
-  static deserializeUpdate(doc, uint8Array) {
+  static deserializeUpdate(uint8Array) {
     const dataView = _makeDataView(uint8Array);
     
     let index = 0;
@@ -1566,7 +1608,8 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
     doc.setClockState(clock, state);
   };
   const _handleTransactionMessage = () => {
-    let transactionCache = TransactionCache.deserializeUpdate(doc, uint8Array);
+    let transactionCache = TransactionCache.deserializeUpdate(uint8Array);
+    transactionCache.doc = doc;
     transactionCache.origin = transactionOrigin;
     
     // rebase on top of local history as needed
