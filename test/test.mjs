@@ -1275,11 +1275,11 @@ describe('stress test', function() {
       const playerIndex = this.remotePlayers.findIndex(player => player.playerId === playerId);
       if (playerIndex !== -1) {
         const playersArray = this.getPlayersArray();
-        const playerMap = playersArray.get(playerIndex, Z.Map);
+        /* const playerMap = playersArray.get(playerIndex, Z.Map);
         if (playerMap.get('playerId') !== playerId) {
           console.warn('deleting the wrong player id', playerId, playerMap.get('playerId'));
           throw new Error('fail');
-        }
+        } */
         playersArray.delete(playerIndex);
       } /* else {
         throw new Error('failed to clear player: ' + playerId);
