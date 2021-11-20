@@ -927,6 +927,7 @@ describe('stress test', function() {
           name: event.constructor.name,
           keyPath: JSON.stringify(event.keyPath),
           arr: event.arr,
+          startClock: transactionCache.startClock,
         };
       });
       return events;
