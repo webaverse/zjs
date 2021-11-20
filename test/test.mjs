@@ -1174,9 +1174,9 @@ describe('stress test', function() {
                   break;
                 } else {
                   const packetDestination = pipe.destination;
-                  if (packetDestination.playerId !== packet.origin) { // do not route recursively
+                  // if (packetDestination.playerId !== packet.origin) { // do not route recursively
                     packetDestination.handlePacket(packet);
-                  }
+                  // }
                   pipe.outPacketQueue.shift();
                 }
               }
@@ -1191,9 +1191,9 @@ describe('stress test', function() {
         if (pipe.outPacketQueue.length > 0) {
           for (const packet of pipe.outPacketQueue) {
             const packetDestination = pipe.destination;
-            if (packetDestination.playerId !== packet.origin) { // do not route recursively
+            // if (packetDestination.playerId !== packet.origin) { // do not route recursively
               packetDestination.handlePacket(packet);
-            }
+            // }
           }
           pipe.outPacketQueue.length = 0;
         }
@@ -1252,7 +1252,9 @@ describe('stress test', function() {
       // listen for local data spout
       this.doc.on('update', (uint8Array, origin, doc, transaction) => {
         for (const pipe of this.pipes) {
-          pipe.pushPacket(uint8Array, origin);
+          if (pipe.destination.playerId !== origin) {
+            pipe.pushPacket(uint8Array, origin);
+          }
         }
       });
 
