@@ -946,15 +946,6 @@ describe('stress test', function() {
 
       this.server = server;
       this.clients = clients;
-
-      /* for (const client of clients) {
-        this.server.pipe(client);
-        client.pipe(this.server);
-
-        console.log('pending client packets', util.inspect(client.outPacketQueue.map(_parsePacket), {
-          depth: 5,
-        }));
-      } */
     }
     update() {
       // console.log('tick 1----------------------------------------');
