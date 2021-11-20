@@ -433,6 +433,7 @@ class ZDoc extends ZEventEmitter {
       for (const event of this.transactionCache.events) {
         event.resolvePriority = this.transactionCache.resolvePriority;
         this.history.set(this.clock++, event);
+        globalThis.maxHistoryLength = Math.max(globalThis.maxHistoryLength, this.clock);
       }
       /* if (this.transactionCache.events.some(e => e.constructor.name === 'ZEvent')) {
         throw new Error('bad construction');
@@ -1674,6 +1675,7 @@ const ZEVENT_CONSTRUCTORS = [
   ZArrayDeleteEvent,
 ];
 
+globalThis.maxHistoryLength = 0;
 globalThis.maxHistoryTailLength = 0;
 function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
   const dataView = _makeDataView(uint8Array);
@@ -1726,6 +1728,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
     for (const event of transactionCache.events) {
       event.resolvePriority = transactionCache.resolvePriority;
       doc.history.set(doc.clock++, event);
+      globalThis.maxHistoryLength = Math.max(globalThis.maxHistoryLength, doc.clock);
     }
 
     if (doc.mirror) {

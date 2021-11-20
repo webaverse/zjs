@@ -1389,7 +1389,7 @@ describe('stress test', function() {
     for (let i = 0; i < numIterations; i++) {
       console.log('iteration', i);
       simulation.update();
-      console.log('verify', i, simulation.clients.length, globalThis.maxHistoryTailLength);
+      console.log('verify', i, simulation.clients.length, globalThis.maxHistoryLength, globalThis.maxHistoryTailLength);
       _check(simulation);
     }
   };
