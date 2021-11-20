@@ -1101,19 +1101,6 @@ describe('stress test', function() {
       // packet buffer
       this.pipes = [];
       this.outPacketQueue = [];
-      
-      // listeners
-
-      // listen for local data spout
-      this.doc.on('update', (uint8Array, origin, doc, transaction) => {
-        if (origin !== this.playerId) {
-          // const o = (this instanceof ServerWorldView) ? 'world' : (origin ?? this.playerId);
-          const o = origin ?? this.playerId;
-          this.pushPacket(uint8Array, o);
-          // XXX prevent players from reflecting joins from other players that went through the server
-          // perhaps we should only make the server reflect, but
-        }
-      });
 
       // listen for players
       const playersArray = this.getPlayersArray();
@@ -1266,6 +1253,17 @@ describe('stress test', function() {
 
       this.doc.setResolvePriority(0);
       this.doc.setMirror(true);
+      
+      // listen for local data spout
+      this.doc.on('update', (uint8Array, origin, doc, transaction) => {
+        // if (origin !== this.playerId) {
+          // const o = (this instanceof ServerWorldView) ? 'world' : (origin ?? this.playerId);
+          // const o = origin ?? this.playerId;
+          this.pushPacket(uint8Array, origin);
+          // XXX prevent players from reflecting joins from other players that went through the server
+          // perhaps we should only make the server reflect, but
+        // }
+      });
 
       if (initialize) {
         this.playerId = 'server';
@@ -1304,6 +1302,16 @@ describe('stress test', function() {
       super(doc);
 
       this.doc.setResolvePriority(1);
+      
+      // listen for local data spout
+      this.doc.on('update', (uint8Array, origin, doc, transaction) => {
+        // if (origin !== this.playerId) {
+          // const o = (this instanceof ServerWorldView) ? 'world' : (origin ?? this.playerId);
+          this.pushPacket(uint8Array, this.playerId);
+          // XXX prevent players from reflecting joins from other players that went through the server
+          // perhaps we should only make the server reflect, but
+        // }
+      });
 
       if (initialize) {
         this.playerId = 'player.' + _makeId();
