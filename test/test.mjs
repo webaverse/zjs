@@ -944,28 +944,24 @@ describe('stress test', function() {
       this.clients = clients;
     }
     update() {
-      // console.log('tick 1----------------------------------------');
-
-      const events = [];
-
       // add client
       {      
         const r = rng();
         if (r < 0.25) {
           const client = new ClientWorldView();
-          const uint8Array = Z.encodeStateAsUpdate(this.server.doc);
 
-          client.bind();
-
+          const _packet = packet => {
+            client.removeEventListener('packet', _packet);
+            client.bind();
+          };
+          client.addEventListener('packet', _packet);
+          
           const pipe = this.server.pipe(client);
-          pipe.pushPacket(uint8Array);
           client.pipe(this.server);
 
+          this.server.emitInitialPacket(pipe);
+
           this.clients.push(client);
-
-          // console.log('initialized client', client.playerId, client.doc.toJSON(), this.server.doc.toJSON());
-
-          events.push('simulation added client ' + client.playerId);
         }
       }
       // remove client
@@ -981,31 +977,19 @@ describe('stress test', function() {
             this.clients.splice(index, 1);
 
             this.server.clearPlayer(client.playerId);
-
-            events.push('simulation removed client ' + client.playerId);
           }
         }
       }
-      // console.log('tick 2----------------------------------------');
       // tick all clients
       {
         for (const client of this.clients) {
-          const newEvents = client.update();
-          events.push.apply(events, newEvents);
+          client.update();
         }
       }
-      // console.log('tick 3----------------------------------------');
-      /* console.log('server tx cache is', util.inspect(this.server.outPacketQueue.slice().map(_parsePacket), {
-        depth: 10,
-      })); */
       // tick server
       {
-        const newEvents = this.server.update();
-        events.push.apply(events, newEvents);
+        this.server.update();
       }
-      // console.log('tick 4----------------------------------------');
-
-      return events;
     }
     clone() {
       const server = this.server.clone();
@@ -1024,12 +1008,18 @@ describe('stress test', function() {
       );
     }
     flush() {
-      for (const client of this.clients) {
-        const events = client.flush();
-        // console.log('flushing client events', events);
-      }
-      const events = this.server.flush();
-      // console.log('flushing server events', events);
+      const _flushClients = () => {
+        for (const client of this.clients) {
+          client.flush();
+        }
+      };
+      const _flushServer = () => {
+        this.server.flush();
+      };
+
+      _flushClients();
+      _flushServer();
+      _flushClients();
     }
     verify() {      
       const serverWorldAppManagerAppArray = this.server.doc.getArray('world.apps');
@@ -1044,8 +1034,6 @@ describe('stress test', function() {
           player.toJSON(),
         ];
       }));
-      
-      console.log('verify', this.clients.length);
 
       for (const client of this.clients) {
         const clientWorldAppManagerAppArray = client.doc.getArray('world.apps');
@@ -1079,8 +1067,6 @@ describe('stress test', function() {
       this.data = data;
       this.delay = delay;
       this.origin = origin;
-
-      // this.stack = new Error().stack; // XXX temp
     }
     clone(){
       return new PacketQueueEntry(this.data, this.delay, this.origin);
@@ -1092,7 +1078,7 @@ describe('stress test', function() {
       this.outPacketQueue = outPacketQueue;
     }
     pushPacket(data, origin) {
-      const delay = Math.floor(Math.pow(rng() * 5, 0.7));
+      const delay = Math.floor(rng() * 5);
       const packet = new PacketQueueEntry(data, delay, origin);
       this.outPacketQueue.push(packet);
     }
@@ -1104,8 +1090,10 @@ describe('stress test', function() {
       return pipe;
     }
   }
-  class WorldView {
+  class WorldView extends EventTarget {
     constructor(doc = new Z.Doc()) {
+      super();
+
       this.doc = doc;
       this.appManager = null;
       this.remotePlayers = [];
@@ -1130,12 +1118,11 @@ describe('stress test', function() {
       // listen for players
       const playersArray = this.getPlayersArray();
       playersArray.observe(e => {
-        // console.log('got deleted', deleted);
+        // remove old players
         for (const index of e.deleted) {
-          // console.log('check changes', e.changes?.keys);
           const oldPlayerMap = e.changes.keys.get(index).value;
           const playerId = oldPlayerMap.get('playerId');
-          const oldPlayerIndex = this.remotePlayers.findIndex(player => player.playerId);
+          const oldPlayerIndex = this.remotePlayers.findIndex(player => player.playerId === playerId);
           if (oldPlayerIndex !== -1) {
             const oldPlayer = this.remotePlayers[oldPlayerIndex];
             oldPlayer.destroy();
@@ -1144,9 +1131,10 @@ describe('stress test', function() {
             throw new Error('delete nonexistent player: ' + playerId);
           }
         }
+
+        // add new players
         for (const newKey of e.added) {
           const newPlayerMap = playersArray.get(newKey, Z.Map);
-          // console.log('got new player', newKey, newPlayerMap);
           const newPlayer = new Player(newPlayerMap);
           this.remotePlayers.push(newPlayer);
         }
@@ -1164,7 +1152,7 @@ describe('stress test', function() {
       return pipe;
     }
     unpipe(packetDestination) {
-      const index = this.pipes.findIndex(packet => packet.destination === packetDestination);
+      const index = this.pipes.findIndex(pipe => pipe.destination === packetDestination);
       if (index !== -1) {
         this.pipes.splice(index, 1);
       } else {
@@ -1176,73 +1164,65 @@ describe('stress test', function() {
         pipe.pushPacket(data, origin);
       }
     }
+    bind(opts) {
+      this.isBound = true;
+    }
     update() {
-      const events = [];
+      if (this.isBound) {
+        this.appManager.update();
+        
+        const _tickPackets = () => {
+          let maxNumDelays = 0;
+          for (const pipe of this.pipes) {
+            let numDelays = 0;
+            for (const packet of pipe.outPacketQueue) {
+              numDelays += packet.delay;
+            }
+            maxNumDelays = Math.max(maxNumDelays, numDelays);
+          }
 
-      this.appManager.update();
-      
-      const _tickPackets = () => {
-        for (const pipe of this.pipes) {
-          while (pipe.outPacketQueue.length > 0) {
-            const packet = pipe.outPacketQueue[0];
-            if (packet.delay > 0) {
-              packet.delay--;
-              break;
-            } else {
-              const packetDestination = pipe.destination;
-              if (packetDestination.playerId !== packet.origin) { // do not route recursively
-                packetDestination.handlePacket(packet);
-                events.push(this.playerId + ' sent packet to ' + packetDestination.playerId + ' from origin ' + packet.origin);
-              } else {
-                events.push(this.playerId + ' skipped sending packet to ' + packetDestination.playerId + ' from origin ' + packet.origin);
+          const numTicks = Math.max(Math.floor(rng() * maxNumDelays * 1/3), 1);
+          for (let i = 0; i < numTicks; i++) {
+            for (const pipe of this.pipes) {
+              globalThis.maxQueueLength = Math.max(globalThis.maxQueueLength, pipe.outPacketQueue.length);
+              while (pipe.outPacketQueue.length > 0) {
+                const packet = pipe.outPacketQueue[0];
+                if (packet.delay > 0) {
+                  packet.delay--;
+                  break;
+                } else {
+                  const packetDestination = pipe.destination;
+                  if (packetDestination.playerId !== packet.origin) { // do not route recursively
+                    packetDestination.handlePacket(packet);
+                  }
+                  pipe.outPacketQueue.shift();
+                }
               }
-              pipe.outPacketQueue.shift();
             }
           }
-        }
-      };
-      _tickPackets();
-
-      return events;
+        };
+        _tickPackets();
+      }
     }
     flush() {
-      const events = [];
-
       for (const pipe of this.pipes) {
         if (pipe.outPacketQueue.length > 0) {
           for (const packet of pipe.outPacketQueue) {
             const packetDestination = pipe.destination;
             if (packetDestination.playerId !== packet.origin) { // do not route recursively
-              // console.log('got packet destination 1', packetDestination.playerId, packetDestination.doc.toJSON(), this.doc.toJSON());
               packetDestination.handlePacket(packet);
-              events.push(this.playerId + ' flushed packet to ' + packetDestination.playerId + ' from origin ' + packet.origin);
-              // console.log('got packet destination 2', packetDestination.playerId, packetDestination.doc.toJSON(), this.doc.toJSON());
-            } else {
-              events.push(this.playerId + ' skipped flushing packet to ' + packetDestination.playerId + ' from origin ' + packet.origin);
             }
           }
           pipe.outPacketQueue.length = 0;
         }
       }
-
-      return events;
     }
     handlePacket(packet) {
-      Z.applyUpdate(this.doc, packet.data, packet.origin);
-      
-      {
-        const playersArray = this.getPlayersArray();
-        const playerIdSet = new Set();
-        for (let i = 0; i < playersArray.length; i++) {
-          const playerMap = playersArray.get(i, Z.Map);
-          const playerId = playerMap.get('playerId');
-          if (!playerIdSet.has(playerId)) {
-            playerIdSet.add(playerId);
-          } else {
-            throw new Error('duplicate player id: ' + playerId);
-          }
-        }
-      }
+      Z.applyUpdate(this.doc, packet.data, packet.origin, this.playerId);
+
+      this.dispatchEvent(new MessageEvent('packet', {
+        data: packet,
+      }));
     }
     clone() {
       const newDoc = this.doc.clone();
@@ -1279,10 +1259,12 @@ describe('stress test', function() {
       return result;
     }
   }
+  // let numEmits = 0;
   class ServerWorldView extends WorldView {
     constructor(doc = new Z.Doc(), {initialize = true} = {}) {
       super(doc);
 
+      this.doc.setResolvePriority(0);
       this.doc.setMirror(true);
 
       if (initialize) {
@@ -1292,18 +1274,25 @@ describe('stress test', function() {
       }
       this.appManager = null;
     }
-    bind() {
+    bind(opts = {}) {
+      super.bind(opts);
+
       const appsArray = this.doc.getArray('world.apps');
       this.appManager = new AppManager(appsArray);
     }
+    emitInitialPacket(pipe) {
+      const uint8Array = Z.encodeStateAsUpdate(this.doc);
+      pipe.pushPacket(uint8Array);
+    }
     clearPlayer(playerId) {
-      // console.log('clear player', playerId, this.remotePlayers);
-
-      const playerIndex = this.remotePlayers.findIndex(player => {
-        return player.playerId === playerId;
-      });
+      const playerIndex = this.remotePlayers.findIndex(player => player.playerId === playerId);
       if (playerIndex !== -1) {
         const playersArray = this.getPlayersArray();
+        const playerMap = playersArray.get(playerIndex, Z.Map);
+        if (playerMap.get('playerId') !== playerId) {
+          console.warn('deleting the wrong player id', playerId, playerMap.get('playerId'));
+          throw new Error('fail');
+        }
         playersArray.delete(playerIndex);
       } /* else {
         throw new Error('failed to clear player: ' + playerId);
@@ -1314,6 +1303,8 @@ describe('stress test', function() {
     constructor(doc = new Z.Doc(), {initialize = true} = {}) {
       super(doc);
 
+      this.doc.setResolvePriority(1);
+
       if (initialize) {
         this.playerId = 'player.' + _makeId();
       } else {
@@ -1323,18 +1314,24 @@ describe('stress test', function() {
       this.appManager = null;
       this.worldAppManager = null;
     }
-    bind({initialize = true} = {}) {
+    bind(opts = {}) {
+      super.bind(opts);
+
+      const {initialize = true} = opts;
+
       const playersArray = this.getPlayersArray();
       if (initialize) {
-        const localPlayerMap = new Z.Map();
-        localPlayerMap.set('playerId', this.playerId);
-        const position = Float32Array.from([rngndc(), rngndc(), rngndc()])
-        localPlayerMap.set('position', position);
-        const appsArray = new Z.Array();
-        localPlayerMap.set('apps', appsArray);
-        playersArray.push([localPlayerMap]);
-        this.localPlayer = new Player(localPlayerMap);
-        this.appManager = new AppManager(appsArray);
+        this.doc.transact(() => {
+          const localPlayerMap = new Z.Map();
+          localPlayerMap.set('playerId', this.playerId);
+          const position = Float32Array.from([rngndc(), rngndc(), rngndc()])
+          localPlayerMap.set('position', position);
+          const appsArray = new Z.Array();
+          localPlayerMap.set('apps', appsArray);
+          playersArray.push([localPlayerMap]);
+          this.localPlayer = new Player(localPlayerMap);
+          this.appManager = new AppManager(appsArray);
+        });
       } else {
         let localPlayerMap = (() => {
           for (let i = 0; i < playersArray.length; i++) {
@@ -1357,6 +1354,19 @@ describe('stress test', function() {
 
       const worldAppsArray = this.doc.getArray('world.apps');
       this.worldAppManager = new AppManager(worldAppsArray);
+    }
+    update() {
+      const events = super.update();
+
+      const r = rng();
+      if (this.isBound) {
+        if (r < 1/3) {
+          const newPosition = Float32Array.from([rngndc(), rngndc(), rngndc()]);
+          this.localPlayer.playerMap.set('position', newPosition);
+        }
+      }
+
+      return events;
     }
   }
   class Player {
@@ -1384,13 +1394,11 @@ describe('stress test', function() {
     const simulation = new Simulation();
     for (let i = 0; i < numIterations; i++) {
       console.log('iteration', i);
-      const events = simulation.update();
-      // console.log('got events', events);
+      simulation.update();
       _check(simulation);
-      // console.log('players cleared', playersCleared);
     }
   };
-  it('should survive 1000 iterations', function() {
+  it('should survive 1000 iterations', async function() {
     _stressTest(1000);
   });
 });
