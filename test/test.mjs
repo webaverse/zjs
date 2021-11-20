@@ -1146,11 +1146,6 @@ describe('stress test', function() {
         throw new Error('unpipe nonexistent packet destination');
       }
     }
-    pushPacket(data, origin = null) {
-      for (const pipe of this.pipes) {
-        pipe.pushPacket(data, origin);
-      }
-    }
     bind(opts) {
       this.isBound = true;
     }
@@ -1256,13 +1251,9 @@ describe('stress test', function() {
       
       // listen for local data spout
       this.doc.on('update', (uint8Array, origin, doc, transaction) => {
-        // if (origin !== this.playerId) {
-          // const o = (this instanceof ServerWorldView) ? 'world' : (origin ?? this.playerId);
-          // const o = origin ?? this.playerId;
-          this.pushPacket(uint8Array, origin);
-          // XXX prevent players from reflecting joins from other players that went through the server
-          // perhaps we should only make the server reflect, but
-        // }
+        for (const pipe of this.pipes) {
+          pipe.pushPacket(uint8Array, origin);
+        }
       });
 
       if (initialize) {
@@ -1305,12 +1296,9 @@ describe('stress test', function() {
       
       // listen for local data spout
       this.doc.on('update', (uint8Array, origin, doc, transaction) => {
-        // if (origin !== this.playerId) {
-          // const o = (this instanceof ServerWorldView) ? 'world' : (origin ?? this.playerId);
-          this.pushPacket(uint8Array, this.playerId);
-          // XXX prevent players from reflecting joins from other players that went through the server
-          // perhaps we should only make the server reflect, but
-        // }
+        for (const pipe of this.pipes) {
+          pipe.pushPacket(uint8Array, this.playerId);
+        }
       });
 
       if (initialize) {
