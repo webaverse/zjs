@@ -423,7 +423,6 @@ describe('sync', function() {
       const map2 = doc2.getMap('map');
       
       doc1.on('update', (uint8Array, origin, doc, transaction) => {
-        // console.log('got update', uint8Array, origin);
         Z.applyUpdate(doc2, uint8Array, origin);
       });
       doc1.transact(() => {
@@ -899,7 +898,6 @@ describe('stress test', function() {
       
       const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index);
       const state = Z.zbdecode(encodedData);
-      // doc.setClockState(clock, state);
       return {
         clock,
         state,
@@ -907,9 +905,7 @@ describe('stress test', function() {
     };
     const _handleTransactionMessage = () => {
       let transactionCache = Z.TransactionCache.deserializeUpdate(uint8Array);
-      // console.log('got transaction cache', events);
       const events = transactionCache.events.map(event => {
-        // console.log('got event', event);
         return {
           name: event.constructor.name,
           keyPath: JSON.stringify(event.keyPath),
