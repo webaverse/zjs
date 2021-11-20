@@ -879,19 +879,6 @@ describe('sync', function() {
 describe('stress test', function() {
   const _makeId = () => rng().toString(36).substr(2, 5);
   const _makeDataView = uint8Array => new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
-  /* const _parseBoundEvent = encodedEventData => {
-    const dataView = _makeDataView(encodedEventData);
-    
-    let index = 0;
-    const method = dataView.getUint32(index, true);
-    const Cons = ZEVENT_CONSTRUCTORS[method];
-    if (Cons) {
-      return Cons.deserializeUpdate(encodedEventData);
-    } else {
-      console.warn('could not parse bound event due to incorrect method', method, ZEVENT_CONSTRUCTORS);
-      return null;
-    }
-  }; */
   const MESSAGES = (() => {
     let iota = 0;
     return {
