@@ -1245,7 +1245,7 @@ describe('stress test', function() {
       this.doc.setResolvePriority(0);
       this.doc.setMirror(true);
       
-      // listen for local data spout
+      // listen for server document updates/mirrors
       this.doc.on('update', (uint8Array, origin, doc, transaction) => {
         for (const pipe of this.pipes) {
           if (pipe.destination.playerId !== origin) { // do not mirror recursively
@@ -1292,7 +1292,7 @@ describe('stress test', function() {
 
       this.doc.setResolvePriority(1);
       
-      // listen for local data spout
+      // listen for client document updates
       this.doc.on('update', (uint8Array, origin, doc, transaction) => {
         for (const pipe of this.pipes) {
           pipe.pushPacket(uint8Array, this.playerId);
