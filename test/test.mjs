@@ -6,6 +6,10 @@ import util from 'util';
 const rng = new alea('lol');
 Z.setRng(rng);
 
+function rngndc() {
+  return (rng() - 0.5) * 2;
+}
+
 describe('zbencode + zbdecode', function() {
   describe('basic', function() {
     it('should support basic operations', function() {
@@ -1349,7 +1353,8 @@ describe('stress test', function() {
       if (initialize) {
         const localPlayerMap = new Z.Map();
         localPlayerMap.set('playerId', this.playerId);
-        localPlayerMap.set('position', Float32Array.from([0, 0, 0]));
+        const position = Float32Array.from([rngndc(), rngndc(), rngndc()])
+        localPlayerMap.set('position', position);
         const appsArray = new Z.Array();
         localPlayerMap.set('apps', appsArray);
         playersArray.push([localPlayerMap]);
