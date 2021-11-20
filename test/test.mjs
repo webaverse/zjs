@@ -1134,9 +1134,6 @@ describe('stress test', function() {
       // packet buffer
       this.pipes = [];
       this.outPacketQueue = [];
-
-      this.lols = [];
-      this.lols2 = [];
       
       // listeners
 
@@ -1196,17 +1193,6 @@ describe('stress test', function() {
       }
     }
     pushPacket(data, origin = null) {
-      /* // console.log('got data', data);
-      const packet = _parsePacketData(data)[0];
-      if (packet.name === 'ZArrayPushEvent' && packet.keyPath === '[["players","a"],[12858014,"em"]]') {
-        // throw new Error('got');
-        this.lols.push(new Error().stack);
-        if (this.lols.length >= 2) {
-          console.log('lols', this.lols);
-          throw new Error('double');
-        }
-      } */
-
       for (const pipe of this.pipes) {
         pipe.pushPacket(data, origin);
       }
@@ -1225,14 +1211,12 @@ describe('stress test', function() {
               break;
             } else {
               const packetDestination = pipe.destination;
-              // for (const packetDestination of this.packetDestinations) {
-                if (packetDestination.playerId !== packet.origin) { // do not route recursively
-                  packetDestination.handlePacket(packet);
-                  events.push(this.playerId + ' sent packet to ' + packetDestination.playerId + ' from origin ' + packet.origin);
-                } else {
-                  events.push(this.playerId + ' skipped sending packet to ' + packetDestination.playerId + ' from origin ' + packet.origin);
-                }
-              // }
+              if (packetDestination.playerId !== packet.origin) { // do not route recursively
+                packetDestination.handlePacket(packet);
+                events.push(this.playerId + ' sent packet to ' + packetDestination.playerId + ' from origin ' + packet.origin);
+              } else {
+                events.push(this.playerId + ' skipped sending packet to ' + packetDestination.playerId + ' from origin ' + packet.origin);
+              }
               pipe.outPacketQueue.shift();
             }
           }
@@ -1265,21 +1249,6 @@ describe('stress test', function() {
       return events;
     }
     handlePacket(packet) {
-      /* console.log('handle packet', packet, _parsePacketData(packet.data));
-      const parsedPacket = _parsePacket(packet)[0];
-      if (parsedPacket.name === 'ZArrayPushEvent' && parsedPacket.keyPath === '[["players","a"],[12858014,"em"]]') {
-        // throw new Error('got');
-        this.lols2.push(new Error().stack);
-        if (this.lols2.length >= 2) {
-          console.log('lols', this.lols2);
-          throw new Error('double');
-        }
-      } */
-
-      /* console.log('handle packet 1', this.playerId, this.doc.clock, this.doc.toJSON(), packet.origin, util.inspect(_parsePacket(packet), {
-        depth: 5,
-      }), packet.stack); */
-
       Z.applyUpdate(this.doc, packet.data, packet.origin);
       
       {
@@ -1295,10 +1264,6 @@ describe('stress test', function() {
           }
         }
       }
-
-      /* console.log('handle packet 2', this.playerId, this.doc.clock, this.doc.toJSON(), packet.origin, util.inspect(_parsePacket(packet), {
-        depth: 5,
-      }), packet.stack); */
     }
     clone() {
       const newDoc = this.doc.clone();
