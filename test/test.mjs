@@ -1181,7 +1181,7 @@ describe('stress test', function() {
             maxNumDelays = Math.max(maxNumDelays, numDelays);
           }
 
-          const numTicks = Math.max(Math.floor(rng() * maxNumDelays * 1/3), 1);
+          const numTicks = Math.max(Math.floor(rng() * maxNumDelays), 1);
           for (let i = 0; i < numTicks; i++) {
             for (const pipe of this.pipes) {
               globalThis.maxQueueLength = Math.max(globalThis.maxQueueLength, pipe.outPacketQueue.length);
@@ -1395,6 +1395,7 @@ describe('stress test', function() {
     for (let i = 0; i < numIterations; i++) {
       console.log('iteration', i);
       simulation.update();
+      console.log('verify', i, simulation.clients.length, globalThis.maxHistoryTailLength);
       _check(simulation);
     }
   };

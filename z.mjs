@@ -130,6 +130,9 @@ class ZEventEmitter {
   }
 }
 
+const conflictSpec = {
+  weAreHighestPriority: false,
+};
 const _keyPathEquals = (a, b) => {
   if (a.length === b.length) {
     for (let i = 0; i < a.length; i++) {
@@ -158,22 +161,58 @@ const _isKeyPathPrefix = (a, b) => {
     return false;
   }
 };
-const _parentWasSet = (event, historyTail) => historyTail.some(([p, e]) => {
-  return _isKeyPathPrefix(e.keyPath, event.keyPath) &&
-    (
-      (e.isZMapSetEvent) ||
-      (e.isZMapDeleteEvent) ||
-      (e.isZArrayDeleteEvent)
-    );
-});
-const _getConflicts = (event, historyTail) => historyTail.filter(([p, e]) => {
-  return ((e.isZMapSetEvent) || (e.isZMapDeleteEvent)) &&
-    _keyPathEquals(e.keyPath, event.keyPath);
-});
-const _alreadyDeleted = (event, historyTail) => historyTail.some(([p, e]) => {
-  return (e.isZArrayDeleteEvent) &&
-    _keyPathEquals(e.keyPath, event.keyPath);
-});
+const _parentWasSet = (event, historyStartIndex, historyEndIndex, history) => {
+  for (let i = historyStartIndex; i < historyEndIndex; i++) {
+    const e = history.get(i);
+    if (!e) {
+      console.warn('no event', i, historyStartIndex, historyEndIndex, history);
+      throw new Error('no event');
+    }
+    if ( // if this is a parent overwrite
+      _isKeyPathPrefix(e.keyPath, event.keyPath) &&
+        (
+          (e.isZMapSetEvent) ||
+          (e.isZMapDeleteEvent) ||
+          (e.isZArrayDeleteEvent)
+        )
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
+const _getConflicts = (event, historyStartIndex, historyEndIndex, history, resolvePriority, conflictSpec) => {
+  let conflictFound = false;
+  conflictSpec.weAreHighestPriority = true;
+  
+  for (let i = historyStartIndex; i < historyEndIndex; i++) {
+    const e = history.get(i);
+    if ( // if this is a conflicting event
+      ((e.isZMapSetEvent) || (e.isZMapDeleteEvent)) &&
+        _keyPathEquals(e.keyPath, event.keyPath)
+    ) {
+      conflictFound = true;
+      if (e.resolvePriority > resolvePriority) {
+        conflictSpec.weAreHighestPriority = false;
+        break;
+      }
+    }
+  }
+  
+  return conflictFound;
+};
+const _alreadyDeleted = (event, historyStartIndex, historyEndIndex, history) => {
+  for (let i = historyStartIndex; i < historyEndIndex; i++) {
+    const e = history.get(i);
+    if ( // if this is a conflicting delete
+      (e.isZArrayDeleteEvent) &&
+        _keyPathEquals(e.keyPath, event.keyPath)
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
 
 class TransactionCache {
   constructor(doc = null, origin = undefined, startClock = doc.clock, resolvePriority = doc.resolvePriority, events = []) {
@@ -191,21 +230,28 @@ class TransactionCache {
       event.bindToDoc(this.doc);
     }
   }
-  rebase(historyTail) {
+  rebase() {
+    const historyTailLength = this.doc.clock - this.startClock;
+    globalThis.maxHistoryTailLength = Math.max(globalThis.maxHistoryTailLength, historyTailLength);
+    const historyStartIndex = this.startClock;
+    const historyEndIndex = this.doc.clock;
+    const history = this.doc.history;
+    
+    // console.log('got history', this.doc.clock, this.startClock, historyTailLength, this.doc.historyMin, historyStartIndex, historyEndIndex);
+    
     const rebasedEvents = this.events.map(event => {
       if (event.isZMapSetEvent || event.isZMapDeleteEvent) {
-        let conflicts;
-        if (_parentWasSet(event, historyTail)) {
+        if (_parentWasSet(event, historyStartIndex, historyEndIndex, history)) {
           // console.log('torpedo self due to parent conflict');
           return new ZNullEvent();
-        } else if (conflicts = _getConflicts(event, historyTail)) {
-          const _isHighestPriority = () => {
+        } else if (_getConflicts(event, historyStartIndex, historyEndIndex, history, this.resolvePriority, conflictSpec)) {
+          /* const _isHighestPriority = () => {
             return conflicts.every(([p, e]) => {
               return this.resolvePriority <= p;
             });
-          };
+          }; */
 
-          if (_isHighestPriority()) {
+          if (conflictSpec.weAreHighestPriority) {
             // console.log('survive due to high prio');
             return event;
           } else {
@@ -217,14 +263,17 @@ class TransactionCache {
           return event;
         }
       } else if (event.isZArrayPushEvent) {
-        if (_parentWasSet(event, historyTail)) {
+        if (_parentWasSet(event, historyStartIndex, historyEndIndex, history)) {
           return new ZNullEvent();
         } else {
           // console.log('no conflicts');
           return event;
         }
       } else if (event.isZArrayDeleteEvent) {
-        if (_parentWasSet(event, historyTail) || _alreadyDeleted(event, historyTail)) {
+        if (
+          _parentWasSet(event, historyStartIndex, historyEndIndex, history) ||
+          _alreadyDeleted(event, historyStartIndex, historyEndIndex, history)
+        ) {
           // console.log('torpedo self due to parent conflict');
           return new ZNullEvent();
         } else {
@@ -240,7 +289,7 @@ class TransactionCache {
       }
     });
     this.events = rebasedEvents;
-    this.startClock += historyTail.length;
+    this.startClock += historyTailLength;
   }
   serializeUpdate() {    
     let totalSize = 0;
@@ -318,12 +367,14 @@ class TransactionCache {
 
 const MAX_HISTORY_LENGTH = 500;
 class ZDoc extends ZEventEmitter {
-  constructor(state = {}, clock = 0, history = []) {
+  constructor(state = {}, clock = 0, history = new Map(), historyMin = 0) {
     super();
 
     this.state = state;
     this.clock = clock;
     this.history = history;
+    this.historyMin = 0;
+    
     this.transactionDepth = 0;
     this.transactionCache = null;
     this.resolvePriority = _makeId();
@@ -379,16 +430,13 @@ class ZDoc extends ZEventEmitter {
       if (uint8Array) {
         this.dispatchEvent('update', uint8Array, this.transactionCache.origin, this, null);
       }
-      this.clock += this.transactionCache.events.length;
       for (const event of this.transactionCache.events) {
-        this.history.push([this.transactionCache.resolvePriority, event]);
+        event.resolvePriority = this.transactionCache.resolvePriority;
+        this.history.set(this.clock++, event);
       }
-      while(this.history.length > MAX_HISTORY_LENGTH) {
-        this.history.shift();
-      }
-      if (this.transactionCache.events.some(e => e.constructor.name === 'ZEvent')) {
+      /* if (this.transactionCache.events.some(e => e.constructor.name === 'ZEvent')) {
         throw new Error('bad construction');
-      }
+      } */
       this.transactionCache = null;
     }
   }
@@ -584,7 +632,8 @@ class ZDoc extends ZEventEmitter {
     
     this.clock = clock;
     this.state = state;
-    this.history = [];
+    this.history = new Map();
+    this.historyMin = 0;
   }
   getImplByKeyPath(keyPath) {
     let binding = this.state;
@@ -627,7 +676,13 @@ class ZDoc extends ZEventEmitter {
     const newDoc = new ZDoc(
       newState,
       this.clock,
-      this.history.map(([p, e]) => ([p, e.clone()])),
+      new Map(Array.from(this.history.entries()).map(([index, e]) => {
+        return [
+          index,
+          e.clone(),
+        ];
+      })),
+      this.historyMin,
     );
 
     // remap old impls onto new bindings
@@ -1065,6 +1120,7 @@ class ZEvent {
 
     this.impl = null;
     this.keyPathBuffer = null;
+    this.resolvePriority = -1; // populated when we push history
   }
   bindToDoc(doc) {
     if (doc) {
@@ -1654,10 +1710,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
     if (transactionCache.startClock === doc.clock) {
       // nothing
     } else if (transactionCache.startClock < doc.clock) {
-      const historyTail = doc.history.slice(doc.history.length - (doc.clock - transactionCache.startClock));
-      globalThis.maxHistoryTailLength = Math.max(globalThis.maxHistoryTailLength, historyTail.length);
-      
-      transactionCache.rebase(historyTail);
+      transactionCache.rebase();
     } else {
       throw new Error('transaction skipped clock ticks; desynced');
     }
@@ -1665,16 +1718,14 @@ function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
     transactionCache.bindEventsToDoc();
     for (const event of transactionCache.events) {
       event.apply();
-      doc.clock++;
+      // doc.clock++;
       event.triggerObservers();
       event.gc();
     }
 
     for (const event of transactionCache.events) {
-      doc.history.push([transactionCache.resolvePriority, event]);
-      while(doc.history.length > MAX_HISTORY_LENGTH) {
-        doc.history.shift();
-      }
+      event.resolvePriority = transactionCache.resolvePriority;
+      doc.history.set(doc.clock++, event);
     }
 
     if (doc.mirror) {
