@@ -15,7 +15,11 @@ const MESSAGES = (() => {
 
 // XXX can use a power-of-two buffer cache for memory
 
-const _makeId = () => Math.round(Math.random() * 0xFFFFFF);
+let rng = Math.random();
+function setRng(r) {
+  rng = r;
+}
+const _makeId = () => Math.round(rng() * 0xFFFFFF);
 const _jsonify = o => {
   const impl = bindingsMap.get(o);
   if (impl?.isZArray) {
@@ -1697,6 +1701,7 @@ export {
   TransactionCache,
   applyUpdate,
   encodeStateAsUpdate,
+  setRng,
   zbencode,
   zbdecode,
 };
@@ -1708,6 +1713,7 @@ const Z = {
   TransactionCache,
   applyUpdate,
   encodeStateAsUpdate,
+  setRng,
   zbencode,
   zbdecode,
 };
