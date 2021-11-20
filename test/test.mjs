@@ -457,6 +457,7 @@ describe('sync', function() {
       const map2 = doc2.getMap('map');
       
       const doc3 = new Z.Doc();
+      doc3.setMirror(true);
       const array3 = doc3.getArray('array');
       const map3 = doc3.getMap('map');
       
