@@ -872,7 +872,6 @@ describe('sync', function() {
   });
 });
 describe('stress test', function() {
-  const rng = new alea('lol');
   const _makeId = () => rng().toString(36).substr(2, 5);
   const _makeDataView = uint8Array => new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
   /* const _parseBoundEvent = encodedEventData => {
