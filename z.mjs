@@ -333,7 +333,8 @@ class ZDoc extends ZEventEmitter {
     this.transactionDepth = 0;
     this.transactionCache = null;
     this.resolvePriority = _makeId();
-    
+    this.mirror = false;
+
     this.isZDoc = true;
     
     bindingsMap.set(this.state, this);
@@ -365,6 +366,9 @@ class ZDoc extends ZEventEmitter {
   }
   setResolvePriority(resolvePriority) {
     this.resolvePriority = resolvePriority;
+  }
+  setMirror(mirror) {
+    this.mirror = mirror;
   }
   toJSON() {
     return _jsonify(this.state);
@@ -1610,6 +1614,13 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
     const encodedData = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index);
     const state = zbdecode(encodedData);
     doc.setClockState(clock, state);
+
+    if (doc.mirror) {
+      // console.log('mirror yes');
+      doc.dispatchEvent('update', encodedData, transactionOrigin, this, null);
+    } /* else {
+      console.log('mirror no');
+    } */
   };
   const _handleTransactionMessage = () => {
     let transactionCache = TransactionCache.deserializeUpdate(uint8Array);
@@ -1635,10 +1646,13 @@ function applyUpdate(doc, uint8Array, transactionOrigin) {
       event.gc();
     }
     
-    {
+    if (doc.mirror) {
+      // console.log('mirror yes');
       const uint8Array = transactionCache.serializeUpdate();
-      doc.dispatchEvent('update', uint8Array, transactionCache.origin, this, null);
-    }
+      doc.dispatchEvent('update', uint8Array, transactionOrigin, this, null);
+    } /* else {
+      console.log('mirror no');
+    } */
 
     doc.history.push.apply(doc.history, transactionCache.events);
     
