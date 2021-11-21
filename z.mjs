@@ -1333,9 +1333,10 @@ class ZEvent {
   }
   getKeyTypesBuffer() {
     if (this.keyTypesBuffer === null) {
-      this.keyTypesBuffer = textEncoder.encode(
-        this.keyTypes.join('\n')
-      );
+      this.keyTypesBuffer = new Uint8Array(this.keyTypes.length);
+      for (let i = 0; i < this.keyTypes.length; i++) {
+        this.keyTypesBuffer[i] = this.keyTypes[i];
+      }
     }
     return this.keyTypesBuffer;
   }
@@ -1541,9 +1542,7 @@ class ZMapSetEvent extends ZMapEvent {
 
     const ktjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
-    const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = ktjs.split('\n').map(n => parseInt(n, 10));
+    const keyTypes = Array.from(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength));
     index += ktjbLength;
     index = align4(index);
 
@@ -1649,9 +1648,7 @@ class ZMapDeleteEvent extends ZMapEvent {
 
     const ktjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
-    const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = ktjs.split('\n').map(n => parseInt(n, 10));
+    const keyTypes = Array.from(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength));
     index += ktjbLength;
     index = align4(index);
 
@@ -1785,9 +1782,7 @@ class ZArrayPushEvent extends ZArrayEvent {
 
     const ktjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
-    const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = ktjs.split('\n').map(n => parseInt(n, 10));
+    const keyTypes = Array.from(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength));
     index += ktjbLength;
     index = align4(index);
 
@@ -1888,9 +1883,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
 
     const ktjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
-    const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = ktjs.split('\n').map(n => parseInt(n, 10));
+    const keyTypes = Array.from(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength));
     index += ktjbLength;
     index = align4(index);
     
