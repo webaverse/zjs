@@ -1275,6 +1275,7 @@ class ZEvent {
 
     this.impl = null;
     this.keyPathBuffer = null;
+    this.keyTypesBuffer = null;
   }
   bindToDoc(doc) {
     if (doc) {
