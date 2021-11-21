@@ -133,12 +133,27 @@ class ZEventEmitter {
 const conflictSpec = {
   weAreHighestPriority: false,
 };
-const _keyPathEquals = (a, b) => {
-  if (a.length === b.length) {
+const _uint8ArrayEquals = (a, b) => {
+  if (a === b) {
+    return true;
+  } else if (a.length === b.length) {
     for (let i = 0; i < a.length; i++) {
-      const ae = a[i];
-      const be = b[i];
-      if (ae !== be) {
+      if (a[i] !== b[i]) {
+        return false;
+      }
+    }
+    return true;
+  } else {
+    return false;
+  }
+};
+const _keyPathEquals = _uint8ArrayEquals;
+const _uint8ArrayPrefixEquals = (a, b, startIndex, endIndex) => {
+  if (a === b) {
+    return true;
+  } else if (a.length >= endIndex && b.length >= endIndex) {
+    for (let i = startIndex; i < endIndex; i++) {
+      if (a[i] !== b[i]) {
         return false;
       }
     }
@@ -149,24 +164,20 @@ const _keyPathEquals = (a, b) => {
 };
 const _isKeyPathPrefix = (a, b) => {
   if (a.length < b.length) {
-    for (let i = 0; i < a.length; i++) {
-      const ae = a[i];
-      const be = b[i];
-      if (ae !== be) {
-        return false;
-      }
-    }
-    return true;
+    const startIndex = 1; // [
+    const endIndex = a.length - 1; // [a]
+    return _uint8ArrayPrefixEquals(
+      a,
+      b,
+      startIndex,
+      endIndex
+    );
   } else {
     return false;
   }
 };
-const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
-  const historyElementData = new Uint8Array(
-    historyData.buffer,
-    historyData.byteOffset + historyOffsets[historyIndex],
-  );
-  const dataView = _makeDataView(historyElementData);
+/* const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
+  const dataView = _getHistoryDataView(historyData, historyOffsets, historyIndex);
 
   let index = 0;
   const eventType = dataView.getUint32(index, true);
@@ -181,7 +192,7 @@ const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
   index += Uint32Array.BYTES_PER_ELEMENT;
 
   try {
-    const kpjb = new Uint8Array(historyElementData.buffer, historyElementData.byteOffset + index, kpjbLength);
+    const kpjb = new Uint8Array(dataView.buffer, dataView.byteOffset + index, kpjbLength);
     const s = textDecoder.decode(kpjb);
     const keyPath = JSON.parse(s); 
     index += kpjbLength;
@@ -194,7 +205,6 @@ const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
           resolvePriority,
           isZNullEvent: true,
         };
-        break;
       }
       case ZMapSetEvent: {
         return {
@@ -202,7 +212,6 @@ const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
           resolvePriority,
           isZMapSetEvent: true,
         };
-        break;
       }
       case ZMapDeleteEvent: {
         return {
@@ -210,7 +219,6 @@ const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
           resolvePriority,
           isZMapDeleteEvent: true,
         };
-        break;
       }
       case ZArrayPushEvent: {
         return {
@@ -218,7 +226,6 @@ const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
           resolvePriority,
           isZArrayPushEvent: true,
         };
-        break;
       }
       case ZArrayDeleteEvent: {
         return {
@@ -226,11 +233,9 @@ const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
           resolvePriority,
           isZArrayDeleteEvent: true,
         };
-        break;
       }
       default: {
         throw new Error('unknown history buffer event type');
-        break;
       }
     }
   } catch (e) {
@@ -238,19 +243,69 @@ const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
 
     throw e;
   }
+}; */
+const _getHistoryDataView = (historyData, historyOffsets, historyIndex) => {
+  return new DataView(
+    historyData.buffer,
+    historyData.byteOffset + historyOffsets[historyIndex],
+  );
+};
+const _getHistoryMethod = (historyData, historyOffsets, historyIndex) => {
+  const dataView = _getHistoryDataView(historyData, historyOffsets, historyIndex);
+
+  let index = 0;
+  const eventType = dataView.getUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+
+  return eventType;
+};
+const _getHistoryResolvePriority = (historyData, historyOffsets, historyIndex) => {
+  const dataView = _getHistoryDataView(historyData, historyOffsets, historyIndex);
+
+  let index = 0;
+  // const eventType = dataView.getUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+
+  const resolvePriority = dataView.getUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+
+  return resolvePriority;
+};
+const _getHistoryKeyPathBuffer = (historyData, historyOffsets, historyIndex) => {
+  const dataView = _getHistoryDataView(historyData, historyOffsets, historyIndex);
+
+  let index = 0;
+  // const eventType = dataView.getUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+
+  // const resolvePriority = dataView.getUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+
+  const kpjbLength = dataView.getUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+  const kpjb = new Uint8Array(dataView.buffer, dataView.byteOffset + index, kpjbLength);
+
+  return kpjb;
 };
 const _parentWasSet = (event, historyStartIndex, historyEndIndex, historyData, historyOffsets) => {
   for (let i = historyStartIndex; i < historyEndIndex; i++) {
-    const e = _parseHistoryBuffer(historyData, historyOffsets, i);
-    if ( // if this is a parent overwrite
-      _isKeyPathPrefix(e.keyPath, event.keyPath) &&
-        (
-          (e.isZMapSetEvent) ||
-          (e.isZMapDeleteEvent) ||
-          (e.isZArrayDeleteEvent)
-        )
+    // const e = _parseHistoryBuffer(historyData, historyOffsets, i);
+
+    const historyKeyPathBuffer = _getHistoryKeyPathBuffer(historyData, historyOffsets, i);
+    const historyMethod = _getHistoryMethod(historyData, historyOffsets, i);
+    // console.log('check key path', [textDecoder.decode(historyKeyPathBuffer), textDecoder.decode(event.getKeyPathBuffer())]);
+    if ( // if this is a parent
+      _isKeyPathPrefix(historyKeyPathBuffer, event.getKeyPathBuffer())
     ) {
-      return true;
+      const historyMethod = _getHistoryMethod(historyData, historyOffsets, i);
+      // console.log('check prefix yes', historyMethod, [textDecoder.decode(historyKeyPathBuffer), textDecoder.decode(event.getKeyPathBuffer())]);
+      if ( // if this is an overwrite type
+        historyMethod === ZMapSetEvent.METHOD ||
+        historyMethod === ZMapDeleteEvent.METHOD ||
+        historyMethod === ZArrayDeleteEvent.METHOD
+      ) {
+        return true;
+      }
     }
   }
   return false;
@@ -260,15 +315,21 @@ const _getConflicts = (event, historyStartIndex, historyEndIndex, historyData, h
   conflictSpec.weAreHighestPriority = true;
   
   for (let i = historyStartIndex; i < historyEndIndex; i++) {
-    const e = _parseHistoryBuffer(historyData, historyOffsets, i);
-    if ( // if this is a conflicting event
-      ((e.isZMapSetEvent) || (e.isZMapDeleteEvent)) &&
-        _keyPathEquals(e.keyPath, event.keyPath)
+    // const e = _parseHistoryBuffer(historyData, historyOffsets, i);
+    const historyMethod = _getHistoryMethod(historyData, historyOffsets, i);
+    if ( // if this is an overwrite type
+      historyMethod === ZMapSetEvent.METHOD ||
+      historyMethod === ZMapDeleteEvent.METHOD
     ) {
-      conflictFound = true;
-      if (e.resolvePriority > resolvePriority) {
-        conflictSpec.weAreHighestPriority = false;
-        break;
+      const historyKeyPathBuffer = _getHistoryKeyPathBuffer(historyData, historyOffsets, i);
+      if (_keyPathEquals(historyKeyPathBuffer, event.getKeyPathBuffer())) { // if it is the same keypath
+        conflictFound = true;
+
+        const historyResolvePriority = _getHistoryResolvePriority(historyData, historyOffsets, i);
+        if (historyResolvePriority > resolvePriority) {
+          conflictSpec.weAreHighestPriority = false;
+          break;
+        }
       }
     }
   }
@@ -277,12 +338,12 @@ const _getConflicts = (event, historyStartIndex, historyEndIndex, historyData, h
 };
 const _alreadyDeleted = (event, historyStartIndex, historyEndIndex, historyData, historyOffsets) => {
   for (let i = historyStartIndex; i < historyEndIndex; i++) {
-    const e = _parseHistoryBuffer(historyData, historyOffsets, i);
-    if ( // if this is a conflicting delete
-      (e.isZArrayDeleteEvent) &&
-        _keyPathEquals(e.keyPath, event.keyPath)
-    ) {
-      return true;
+    const historyMethod = _getHistoryMethod(historyData, historyOffsets, i);
+    if (historyMethod === ZArrayDeleteEvent.METHOD) {
+      const historyKeyPathBuffer = _getHistoryKeyPathBuffer(historyData, historyOffsets, i);
+      if (_keyPathEquals(historyKeyPathBuffer, event.getKeyPathBuffer())) {
+        return true;
+      }
     }
   }
   return false;
@@ -1223,7 +1284,7 @@ class ZEvent {
     if (doc) {
       this.impl = doc.getImplByKeyPathParent(this.keyPath, this.keyTypes);
       if (!this.impl) {
-        console.warn('cannot bind impl to key path', doc.state, keyPath, keyTypes);
+        console.warn('cannot bind impl to key path', doc.state, this.keyPath, this.keyTypes);
         throw new Error('cannot bind impl to key path');
       }
       // this.doc = doc;
@@ -1637,7 +1698,6 @@ class ZArrayPushEvent extends ZArrayEvent {
   constructor(keyPath, keyTypes, arr) {
     super(keyPath, keyTypes);
 
-    // console.log('check binding', arr, this.arr);
     this.arr = _getBindingForArray(arr);
     this.index = -1;
     
