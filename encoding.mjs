@@ -39,36 +39,50 @@ const encodableConstructors = [
   Float32Array,
   Float64Array,
 ];
+const _isAddendumEncodable = o =>
+  encodableConstructors.includes(
+    o?.constructor
+  );
+const nullUint8Array = textEncoder.encode('null');
 function zbencode(o) {
-  let recursionIndex = 0;
   const addendums = [];
   const addendumIndexes = [];
   const addendumTypes = [];
-  const _recurse = o => {
-    recursionIndex++;
-    if (!!o && !!o.constructor && encodableConstructors.includes(o.constructor)) {
+  let sb, sbl;
+  const _getSb = () => {
+    if (_isAddendumEncodable(o)) { // common fast path
       addendums.push(o);
-      addendumIndexes.push(recursionIndex);
-      const addendumType = ADDENDUM_TYPES.get(o.constructor);
-      /* if (addendumType === undefined) {
-        throw new Error(`Unsupported addendum type: ${o.constructor.name}`);
-      } */
-      addendumTypes.push(addendumType)
-      return null;
+      addendumIndexes.push(1);
+      addendumTypes.push(ADDENDUM_TYPES.get(o.constructor));
+      sb = nullUint8Array;
+      sbl = nullUint8Array.byteLength;
     } else {
-      return o;
+      let recursionIndex = 0;
+      const _recurseExtractAddendums = o => {
+        recursionIndex++;
+        if (_isAddendumEncodable(o)) {
+          addendums.push(o);
+          addendumIndexes.push(recursionIndex);
+          const addendumType = ADDENDUM_TYPES.get(o.constructor);
+          addendumTypes.push(addendumType)
+          return null;
+        } else {
+          return o;
+        }
+      };
+      const s = JSON.stringify(o, function(k, v) {
+        return _recurseExtractAddendums(v);
+      });
+      const {read, written} = textEncoder.encodeInto(s, textUint8Array);
+      if (read !== s.length) {
+        throw new Error('buffer overflow');
+      }
+      sb = textUint8Array;
+      sbl = written;
     }
   };
-  const s = JSON.stringify(o, function(k, v) {
-    return _recurse(v);
-  });
-  const {read: sbr, written: sbl} = textEncoder.encodeInto(s, textUint8Array);
-  if (sbr !== s.length) {
-    throw new Error('buffer overflow');
-  }
-  const sb = textUint8Array;
-  // const sb = new Uint8Array(textUint8Array.buffer, textUint8Array.byteOffset, sbl);
-  
+  _getSb();
+    
   let totalSize = 0;
   totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
   totalSize += sb.byteLength; // data
