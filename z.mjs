@@ -776,15 +776,21 @@ class ZDoc extends ZEventEmitter {
       
       const child = (() => {
         switch (keyType) {
-          case 'a': return impl.get(key, ZArray);
-          case 'm': return impl.get(key, ZMap);
-          case 'v': return impl.get(key);
-          case 'ea': return impl.getId(key, ZArray);
-          case 'em': return impl.getId(key, ZMap);
-          case 'ev': return impl.getId(key);
-          default: return undefined;
+          case KEY_TYPES.ARRAY: return impl.get(key, ZArray);
+          case KEY_TYPES.MAP: return impl.get(key, ZMap);
+          case KEY_TYPES.VALUE: return impl.get(key);
+          case (KEY_TYPES.ELEMENT|KEY_TYPES.ARRAY): return impl.getId(key, ZArray);
+          case (KEY_TYPES.ELEMENT|KEY_TYPES.MAP): return impl.getId(key, ZMap);
+          case (KEY_TYPES.ELEMENT|KEY_TYPES.VALUE): return impl.getId(key);
+          default: return 'lol';
         }
       })();
+``
+      if (child === 'lol') {
+        console.warn(`Key path does not exist`, JSON.stringify([keyType, KEY_TYPES.ARRAY]), keyPath, binding.array);
+        throw new Error(`Key path ${keyPath} ${keyType} ${binding.array} does not exist`);
+      }
+
       if (child) {
         impl = child;
         binding = child.binding;
@@ -856,20 +862,27 @@ class ZDoc extends ZEventEmitter {
   }
 }
 
+const KEY_TYPES = {
+  NONE: 0,
+  ARRAY: 1,
+  MAP: 2,
+  VALUE: 4,
+  ELEMENT: 8,
+};
 const _getImplKeyType = impl => {
   if (impl?.isZArray) {
-    return 'a';
+    return KEY_TYPES.ARRAY;
   } else if (impl?.isZMap) {
-    return 'm';
+    return KEY_TYPES.MAP;
   } else {
-    return null;
+    return KEY_TYPES.NONE;
   }
 };
 const _getImplConstructorForKeyType = type => {
-  if (/m$/.test(type)) {
-    return ZMap;
-  } else if (/a$/.test(type)) {
+  if (type & KEY_TYPES.ARRAY) {
     return ZArray;
+  } else if (type & KEY_TYPES.MAP) {
+    return ZMap;
   } else {
     return null;
   }
@@ -915,7 +928,7 @@ class ZObservable {
         if (parentImpl.isZDoc) {
           const impl = bindingsMap.get(binding);
           const keyType = _getImplKeyType(impl);
-          if (keyType !== null) {
+          if (keyType) {
             const keys = Object.keys(parentBinding);
             const matchingKeys = keys.filter(k => parentBinding[k] === binding);
             if (matchingKeys.length === 1) {
@@ -933,7 +946,7 @@ class ZObservable {
           const index = parentImpl.binding.e.indexOf(binding);
           const zid = parentImpl.binding.i[index];
           const impl = bindingsMap.get(binding);
-          const type = 'e' + (_getImplKeyType(impl) || 'v');
+          const type = (_getImplKeyType(impl) || KEY_TYPES.VALUE) | KEY_TYPES.ELEMENT;
           keyPath.push(zid);
           keyTypes.push(type);
         } else if (parentImpl.isZMap) {
@@ -942,7 +955,7 @@ class ZObservable {
           if (matchingKeys.length === 1) {
             const key = matchingKeys[0];
             const impl = bindingsMap.get(binding);
-            const type = _getImplKeyType(impl) || 'v';
+            const type = _getImplKeyType(impl) || KEY_TYPES.VALUE;
             keyPath.push(key);
             keyTypes.push(type);
           } else {
@@ -1012,7 +1025,7 @@ class ZMap extends ZObservable {
     _ensureImplBound(v, this);
     
     const {keyPath, keyTypes} = this.getKeyPathSpec();
-    const keyType = _getImplKeyType(v) || 'v';
+    const keyType = _getImplKeyType(v) || KEY_TYPES.VALUE;
     keyPath.push(k);
     keyTypes.push(keyType);
     const event = new ZMapSetEvent(
@@ -1036,7 +1049,7 @@ class ZMap extends ZObservable {
     delete this.binding[k];
     const {keyPath, keyTypes} = this.getKeyPathSpec();
     keyPath.push(k);
-    keyTypes.push('v');
+    keyTypes.push(KEY_TYPES.MAP);
     const event = new ZMapDeleteEvent(
       keyPath,
       keyTypes
@@ -1178,7 +1191,7 @@ class ZArray extends ZObservable {
     
     const {keyPath, keyTypes} = this.getKeyPathSpec();
     const impl = bindingsMap.get(arr[0]) ?? arr[0];
-    const keyType = 'e' + (_getImplKeyType(impl) || 'v');
+    const keyType = (_getImplKeyType(impl) || KEY_TYPES.VALUE) | KEY_TYPES.ELEMENT;
     keyPath.push(zid);
     keyTypes.push(keyType);
     const event = new ZArrayPushEvent(
@@ -1207,7 +1220,7 @@ class ZArray extends ZObservable {
     
     const {keyPath, keyTypes} = this.getKeyPathSpec();
     keyPath.push(zid);
-    keyTypes.push('ev');
+    keyTypes.push(KEY_TYPES.ELEMENT|KEY_TYPES.VALUE);
     const event = new ZArrayDeleteEvent(
       keyPath,
       keyTypes,
@@ -1530,7 +1543,7 @@ class ZMapSetEvent extends ZMapEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
     const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = ktjs.split('\n');
+    const keyTypes = ktjs.split('\n').map(n => parseInt(n, 10));
     index += ktjbLength;
     index = align4(index);
 
@@ -1638,7 +1651,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
     const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = ktjs.split('\n');
+    const keyTypes = ktjs.split('\n').map(n => parseInt(n, 10));
     index += ktjbLength;
     index = align4(index);
 
@@ -1774,7 +1787,7 @@ class ZArrayPushEvent extends ZArrayEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
     const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = ktjs.split('\n');
+    const keyTypes = ktjs.split('\n').map(n => parseInt(n, 10));
     index += ktjbLength;
     index = align4(index);
 
@@ -1877,7 +1890,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
     const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = ktjs.split('\n');
+    const keyTypes = ktjs.split('\n').map(n => parseInt(n, 10));
     index += ktjbLength;
     index = align4(index);
     
