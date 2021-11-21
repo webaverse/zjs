@@ -1390,7 +1390,7 @@ class ZNullEvent extends ZEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
   }
   static deserializeUpdate(uint8Array) {
-    return new this();
+    return nullEvent;
   }
 }
 class ZMapEvent extends ZEvent {
