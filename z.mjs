@@ -1047,7 +1047,7 @@ class ZMap extends ZObservable {
     }
     event.apply();
     event.triggerObservers();
-    event.gc();
+    // event.gc();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -1068,7 +1068,7 @@ class ZMap extends ZObservable {
     }
     event.apply();
     event.triggerObservers();
-    event.gc();
+    // event.gc();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -1213,7 +1213,7 @@ class ZArray extends ZObservable {
     }
     event.apply();
     event.triggerObservers();
-    event.gc();
+    // event.gc();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -1239,7 +1239,7 @@ class ZArray extends ZObservable {
     }
     event.apply();
     event.triggerObservers();
-    event.gc();
+    // event.gc();
     if (this.doc) {
       this.doc.popTransaction();
     }
@@ -1293,11 +1293,11 @@ class ZEvent {
   bindToImpl(impl) {
     this.impl = impl;
   }
-  gc() {
+  /* gc() {
     this.impl = null;
     this.keyPathBuffer = null;
     this.keyTypesBuffer = null;
-  }
+  } */
   getEvent() {
     const actionSpec = this.getAction();
     if (actionSpec) {
@@ -1434,12 +1434,12 @@ class ZMapEvent extends ZEvent {
     }
     return this.valueBuffer;
   }
-  gc() {
+  /* gc() {
     super.gc();
     
     this.keyBuffer = null;
     this.valueBuffer = null;
-  }
+  } */
 }
 class ZArrayEvent extends ZEvent {
   constructor(keyPath, keyTypes) {
@@ -1455,11 +1455,11 @@ class ZArrayEvent extends ZEvent {
     }
     return this.arrBuffer;
   }
-  gc() {
+  /* gc() {
     super.gc();
     
     this.arrBuffer = null;
-  }
+  } */
 }
 class ZMapSetEvent extends ZMapEvent {
   constructor(keyPath, keyTypes, value) {
@@ -1963,7 +1963,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
       event.apply();
       // doc.clock++;
       event.triggerObservers();
-      event.gc();
+      // event.gc();
     }
 
     for (const event of transactionCache.events) {
