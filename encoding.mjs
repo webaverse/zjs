@@ -36,14 +36,7 @@ function zbencode(o) {
   const addendumTypes = [];
   const _recurse = o => {
     recursionIndex++;
-    if (Array.isArray(o)) {
-      return o;
-      /* const childResult = Array(o.length);
-      for (let i = 0; i < o.length; i++) {
-        childResult[i] = _recurse(o[i]);
-      }
-      return childResult; */
-    } else if (
+    if (
       o instanceof Uint8Array ||
       o instanceof Uint16Array ||
       o instanceof Uint32Array ||
@@ -58,21 +51,8 @@ function zbencode(o) {
       const addendumType = ADDENDUM_TYPES[o.constructor.name];
       addendumTypes.push(addendumType)
       return null;
-    } else if (
-      o === null || o === undefined ||
-      typeof o === 'boolean' || typeof o === 'string' || typeof o === 'number'
-    ) {
-      return o;
-    } else if (typeof o === 'object') {
-      return o;
-      /* const childResult = {};
-      for (const k in o) {
-        childResult[k] = _recurse(o[k]);
-      }
-      return childResult; */
     } else {
-      console.warn('ignoring during zbencode:', o);
-      return null;
+      return o;
     }
   };
   // const j = _recurse(o);
