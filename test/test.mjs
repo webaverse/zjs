@@ -10,13 +10,13 @@ function rngndc() {
   return (rng() - 0.5) * 2;
 }
 
-const keypress = async () => {
+/* const keypress = async () => {
   process.stdin.setRawMode(true)
   return new Promise(resolve => process.stdin.once('data', () => {
     process.stdin.setRawMode(false)
     resolve()
   }))
-}
+}; */
 
 describe('zbencode + zbdecode', function() {
   describe('basic', function() {
@@ -1174,7 +1174,7 @@ describe('stress test', function() {
           const numTicks = Math.max(Math.floor(rng() * maxNumDelays), 1);
           for (let i = 0; i < numTicks; i++) {
             for (const pipe of this.pipes) {
-              globalThis.maxQueueLength = Math.max(globalThis.maxQueueLength, pipe.outPacketQueue.length);
+              // globalThis.maxQueueLength = Math.max(globalThis.maxQueueLength, pipe.outPacketQueue.length);
               while (pipe.outPacketQueue.length > 0) {
                 const packet = pipe.outPacketQueue[0];
                 if (packet.delay > 0) {
@@ -1397,13 +1397,13 @@ describe('stress test', function() {
     for (let i = 0; i < numIterations; i++) {
       console.log('iteration', i);
       simulation.update();
-      console.log('verify', i, simulation.clients.length, globalThis.maxHistoryLength, globalThis.maxHistoryTailLength);
-      _check(simulation);
+      // console.log('verify', i, simulation.clients.length, globalThis.maxHistoryLength, globalThis.maxHistoryTailLength);
     }
+    _check(simulation);
   };
-  it('should survive 1000 iterations', async function() {
-    await keypress();
+  it('should survive 1000 iterations', /* async */function() {
+    // await keypress();
     _stressTest(1000);
-    await keypress();
+    // await keypress();
   });
 });

@@ -367,7 +367,7 @@ class TransactionCache {
   }
   rebase() {
     const historyTailLength = this.doc.clock - this.startClock;
-    globalThis.maxHistoryTailLength = Math.max(globalThis.maxHistoryTailLength, historyTailLength);
+    // globalThis.maxHistoryTailLength = Math.max(globalThis.maxHistoryTailLength, historyTailLength);
     const historyStartIndex = this.startClock;
     const historyEndIndex = this.doc.clock;
     const {historyData, historyOffsets}  = this.doc;
@@ -567,9 +567,8 @@ class ZDoc extends ZEventEmitter {
 
     this.clock++;
     this.historyOffsets[this.clock] = eventTargetBuffer.byteOffset + eventByteLength;
-    // console.log('set history offsets', historyOffsets);
 
-    globalThis.maxHistoryLength = Math.max(globalThis.maxHistoryLength, this.clock); // XXX temp
+    // globalThis.maxHistoryLength = Math.max(globalThis.maxHistoryLength, this.clock); // XXX temp
   }
   pushTransaction(origin) {
     if (++this.transactionDepth === 1) {
@@ -1916,8 +1915,8 @@ const ZEVENT_CONSTRUCTORS = [
   ZArrayDeleteEvent,
 ];
 
-globalThis.maxHistoryLength = 0;
-globalThis.maxHistoryTailLength = 0;
+// globalThis.maxHistoryLength = 0;
+// globalThis.maxHistoryTailLength = 0;
 function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
   const dataView = _makeDataView(uint8Array);
   
