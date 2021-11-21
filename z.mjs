@@ -1333,7 +1333,7 @@ class ZEvent {
   getKeyPathBuffer() {
     if (this.keyPathBuffer === null) {
       this.keyPathBuffer = textEncoder.encode(
-        JSON.stringify(this.keyPath)
+        this.keyPath.join('\n')
       );
     }
     return this.keyPathBuffer;
@@ -1341,7 +1341,7 @@ class ZEvent {
   getKeyTypesBuffer() {
     if (this.keyTypesBuffer === null) {
       this.keyTypesBuffer = textEncoder.encode(
-        JSON.stringify(this.keyTypes)
+        this.keyTypes.join('\n')
       );
     }
     return this.keyTypesBuffer;
@@ -1542,7 +1542,7 @@ class ZMapSetEvent extends ZMapEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const kpjs = textDecoder.decode(kpjb);
-    const keyPath = JSON.parse(kpjs); 
+    const keyPath = kpjs.split('\n');
     index += kpjbLength;
     index = align4(index);
 
@@ -1550,7 +1550,7 @@ class ZMapSetEvent extends ZMapEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
     const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = JSON.parse(ktjs); 
+    const keyTypes = ktjs.split('\n');
     index += ktjbLength;
     index = align4(index);
 
@@ -1650,7 +1650,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const kpjs = textDecoder.decode(kpjb);
-    const keyPath = JSON.parse(kpjs); 
+    const keyPath = kpjs.split('\n');
     index += kpjbLength;
     index = align4(index);
 
@@ -1658,7 +1658,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
     const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = JSON.parse(ktjs); 
+    const keyTypes = ktjs.split('\n');
     index += ktjbLength;
     index = align4(index);
 
@@ -1786,7 +1786,7 @@ class ZArrayPushEvent extends ZArrayEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const kpjs = textDecoder.decode(kpjb);
-    const keyPath = JSON.parse(kpjs); 
+    const keyPath = kpjs.split('\n');
     index += kpjbLength;
     index = align4(index);
 
@@ -1794,7 +1794,7 @@ class ZArrayPushEvent extends ZArrayEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
     const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = JSON.parse(ktjs); 
+    const keyTypes = ktjs.split('\n');
     index += ktjbLength;
     index = align4(index);
 
@@ -1889,7 +1889,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const kpjs = textDecoder.decode(kpjb);
-    const keyPath = JSON.parse(kpjs); 
+    const keyPath = kpjs.split('\n');
     index += kpjbLength;
     index = align4(index);
 
@@ -1897,7 +1897,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
     const ktjs = textDecoder.decode(ktjb);
-    const keyTypes = JSON.parse(ktjs); 
+    const keyTypes = ktjs.split('\n');
     index += ktjbLength;
     index = align4(index);
     
