@@ -130,7 +130,7 @@ function zbdecode(uint8Array) {
   index += sbLength;
   index = align4(index);
   const s = textDecoder.decode(sb);
-  const j = JSON.parse(s);
+  let j = JSON.parse(s);
   
   const numAddendums = dataView.getUint32(index, true);
   index += Uint32Array.BYTES_PER_ELEMENT;
@@ -149,9 +149,9 @@ function zbdecode(uint8Array) {
     index += Uint32Array.BYTES_PER_ELEMENT;
     
     const TypedArrayCons = ADDENDUM_CONSTRUCTORS[addendumType];
-    if (!TypedArrayCons) {
+    /* if (!TypedArrayCons) {
       console.warn('failed to find typed array cons for', addendumType);
-    }
+    } */
     const addendum = TypedArrayCons ?
       new TypedArrayCons(
         uint8Array.buffer,
@@ -170,41 +170,39 @@ function zbdecode(uint8Array) {
   {
     let recursionIndex = 0;
     let currentAddendum = 0;
-    const _recurse = o => {
+    const _recurseBindAddendums = o => {
       recursionIndex++;
       
       const addendumIndex = addendumIndexes[currentAddendum];
-      if (addendumIndex !== undefined && addendumIndex === recursionIndex) {
+      if (addendumIndex === recursionIndex) {
         const addendum = addendums[currentAddendum];
         currentAddendum++;
         return addendum;
       } else if (Array.isArray(o)) {
-        const childResult = Array(o.length);
         for (let i = 0; i < o.length; i++) {
-          childResult[i] = _recurse(o[i]);
+          const addendum = _recurseBindAddendums(o[i]);
+          if (addendum) {
+            o[i] = addendum;
+          }
         }
-        return childResult;
-      } else if (
-        o === null || o === undefined ||
-        typeof o === 'boolean' || typeof o === 'string' || typeof o === 'number'
-      ) {
-        return o;
-      } else if (typeof o === 'object') {
-        const childResult = {};
+      } else if (typeof o === 'object' && o !== null) {
         for (const k in o) {
-          childResult[k] = _recurse(o[k]);
+          const addendum = _recurseBindAddendums(o[k]);
+          if (addendum) {
+            o[k] = addendum;
+          }
         }
-        return childResult;
-      } else {
-        console.warn('ignoring during zbdecode:', o);
-        return null;
       }
+      return null;
     };
-    const result = _recurse(j);
-    if (currentAddendum !== addendums.length) {
-      console.warn('did not bind all addendums', result, currentAddendum, addendums);
+    const j2 = _recurseBindAddendums(j);
+    if (j2 !== null) {
+      j = j2;
     }
-    return result;
+    if (currentAddendum !== addendums.length) {
+      console.warn('did not bind all addendums', j, currentAddendum, addendums);
+    }
+    return j;
   }
 }
 
