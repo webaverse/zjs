@@ -1290,10 +1290,8 @@ class ZEvent {
         console.warn('cannot bind impl to key path', doc.state, this.keyPath, this.keyTypes);
         throw new Error('cannot bind impl to key path');
       }
-      // this.doc = doc;
     } else {
       this.impl = null;
-      // this.doc = null;
     }
   }
   bindToImpl(impl) {
