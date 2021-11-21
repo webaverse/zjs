@@ -48,14 +48,13 @@ function zbencode(o) {
   const addendums = [];
   const addendumIndexes = [];
   const addendumTypes = [];
-  let sb, sbl;
+  let sb;
   const _getSb = () => {
     if (_isAddendumEncodable(o)) { // common fast path
       addendums.push(o);
       addendumIndexes.push(1);
       addendumTypes.push(ADDENDUM_TYPES.get(o.constructor));
       sb = nullUint8Array;
-      sbl = nullUint8Array.byteLength;
     } else {
       let recursionIndex = 0;
       const _recurseExtractAddendums = o => {
@@ -77,8 +76,7 @@ function zbencode(o) {
       if (read !== s.length) {
         throw new Error('buffer overflow');
       }
-      sb = textUint8Array;
-      sbl = written;
+      sb = textUint8Array.subarray(0, written);
     }
   };
   _getSb();
@@ -103,11 +101,11 @@ function zbencode(o) {
     let index = 0;
     // sb
     {
-      dataView.setUint32(index, sbl, true);
+      dataView.setUint32(index, sb.byteLength, true);
       index += Uint32Array.BYTES_PER_ELEMENT;
       
       uint8Array.set(sb, index);
-      index += sbl;
+      index += sb.byteLength;
       index = align4(index);
     }
     // addendums
