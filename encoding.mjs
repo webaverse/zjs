@@ -37,11 +37,12 @@ function zbencode(o) {
   const _recurse = o => {
     recursionIndex++;
     if (Array.isArray(o)) {
-      const childResult = Array(o.length);
+      return o;
+      /* const childResult = Array(o.length);
       for (let i = 0; i < o.length; i++) {
         childResult[i] = _recurse(o[i]);
       }
-      return childResult;
+      return childResult; */
     } else if (
       o instanceof Uint8Array ||
       o instanceof Uint16Array ||
@@ -63,18 +64,21 @@ function zbencode(o) {
     ) {
       return o;
     } else if (typeof o === 'object') {
-      const childResult = {};
+      return o;
+      /* const childResult = {};
       for (const k in o) {
         childResult[k] = _recurse(o[k]);
       }
-      return childResult;
+      return childResult; */
     } else {
       console.warn('ignoring during zbencode:', o);
       return null;
     }
   };
-  const j = _recurse(o);
-  const s = JSON.stringify(j);
+  // const j = _recurse(o);
+  const s = JSON.stringify(o, function(k, v) {
+    return _recurse(v);
+  });
   const {read: sbr, written: sbl} = textEncoder.encodeInto(s, textUint8Array);
   if (sbr !== s.length) {
     throw new Error('buffer overflow');

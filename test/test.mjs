@@ -10,6 +10,14 @@ function rngndc() {
   return (rng() - 0.5) * 2;
 }
 
+const keypress = async () => {
+  process.stdin.setRawMode(true)
+  return new Promise(resolve => process.stdin.once('data', () => {
+    process.stdin.setRawMode(false)
+    resolve()
+  }))
+}
+
 describe('zbencode + zbdecode', function() {
   describe('basic', function() {
     it('should support basic operations', function() {
@@ -1068,7 +1076,7 @@ describe('stress test', function() {
       this.delay = delay;
       this.origin = origin;
     }
-    clone(){
+    clone() {
       return new PacketQueueEntry(this.data, this.delay, this.origin);
     }
   }
@@ -1078,7 +1086,7 @@ describe('stress test', function() {
       this.outPacketQueue = outPacketQueue;
     }
     pushPacket(data, origin) {
-      const delay = Math.floor(rng() * 5);
+      const delay = Math.round(rng() * 2);
       const packet = new PacketQueueEntry(data, delay, origin);
       this.outPacketQueue.push(packet);
     }
@@ -1394,6 +1402,8 @@ describe('stress test', function() {
     }
   };
   it('should survive 1000 iterations', async function() {
+    await keypress();
     _stressTest(1000);
+    await keypress();
   });
 });

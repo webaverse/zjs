@@ -1039,7 +1039,6 @@ class ZMap extends ZObservable {
     const event = new ZMapSetEvent(
       keyPath,
       keyTypes,
-      k,
       v
     );
     event.bindToImpl(this);
@@ -1061,8 +1060,7 @@ class ZMap extends ZObservable {
     keyTypes.push('v');
     const event = new ZMapDeleteEvent(
       keyPath,
-      keyTypes,
-      k
+      keyTypes
     );
     event.bindToImpl(this);
     if (this.doc) {
@@ -1330,6 +1328,9 @@ class ZEvent {
       this.impl.triggerObservers(e);
     }
   }
+  getKey() {
+    return this.keyPath[this.keyPath.length - 1];
+  }
   getKeyPathBuffer() {
     if (this.keyPathBuffer === null) {
       this.keyPathBuffer = textEncoder.encode(
@@ -1462,10 +1463,9 @@ class ZArrayEvent extends ZEvent {
   }
 }
 class ZMapSetEvent extends ZMapEvent {
-  constructor(keyPath, keyTypes, key, value) {
+  constructor(keyPath, keyTypes, value) {
     super(keyPath, keyTypes);
     
-    this.key = key;
     this.value = _getBindingForValue(value);
     
     this.isZMapSetEvent = true;
@@ -1473,18 +1473,16 @@ class ZMapSetEvent extends ZMapEvent {
   static METHOD = ++zEventsIota;
   static Type = ZMap;
   apply() {
-    if (!this.impl) {
-      console.warn('no impl', this);
-    }
-    this.impl.binding[this.key] = this.value;
+    const key = this.getKey();
+    this.impl.binding[key] = this.value;
   }
   getConstructorArgs() {
-    return [this.keyPath, this.keyTypes, this.key, this.value];
+    return [this.keyPath, this.keyTypes, this.value];
   }
   getAction() {
     return {
       action: 'update',
-      key: this.key,
+      key: this.getKey(),
       value: this.value,
     };
   }
@@ -1494,10 +1492,6 @@ class ZMapSetEvent extends ZMapEvent {
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
     totalSize += this.getKeyPathBuffer().byteLength; // key path data
-    totalSize = align4(totalSize);
-    
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
-    totalSize += this.getKeyBuffer().byteLength; // key path data
     totalSize = align4(totalSize);
 
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // key types length
@@ -1531,13 +1525,6 @@ class ZMapSetEvent extends ZMapEvent {
     index += ktjb.byteLength;
     index = align4(index);
     
-    const kb = this.getKeyBuffer();
-    dataView.setUint32(index, kb.byteLength, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    uint8Array.set(kb, index);
-    index += kb.byteLength;
-    index = align4(index);
-    
     const vb = this.getValueBuffer();
     dataView.setUint32(index, vb.byteLength, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
@@ -1555,22 +1542,17 @@ class ZMapSetEvent extends ZMapEvent {
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    const kpjs = textDecoder.decode(kpjb);
+    const keyPath = JSON.parse(kpjs); 
     index += kpjbLength;
     index = align4(index);
 
     const ktjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
-    const keyTypes = JSON.parse(textDecoder.decode(ktjb)); 
+    const ktjs = textDecoder.decode(ktjb);
+    const keyTypes = JSON.parse(ktjs); 
     index += ktjbLength;
-    index = align4(index);
-
-    const kbLength = dataView.getUint32(index, true);
-    index += Uint32Array.BYTES_PER_ELEMENT;
-    const kb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kbLength);
-    const key = textDecoder.decode(kb);
-    index += kbLength;
     index = align4(index);
 
     const vbLength = dataView.getUint32(index, true);
@@ -1583,16 +1565,14 @@ class ZMapSetEvent extends ZMapEvent {
     return new this(
       keyPath,
       keyTypes,
-      key,
       value
     );
   }
 }
 class ZMapDeleteEvent extends ZMapEvent {
-  constructor(keyPath, keyTypes, key, oldValue = null) {
+  constructor(keyPath, keyTypes, oldValue = null) {
     super(keyPath, keyTypes);
 
-    this.key = key;
     this.oldValue = oldValue;
     
     this.isZMapDeleteEvent = true;
@@ -1600,16 +1580,17 @@ class ZMapDeleteEvent extends ZMapEvent {
   static METHOD = ++zEventsIota;
   static Type = ZMap;
   apply() {
-    this.oldValue = this.impl.binding[this.key];
-    delete this.impl.binding[this.key];
+    const key = this.getKey();
+    this.oldValue = this.impl.binding[key];
+    delete this.impl.binding[key];
   }
   getConstructorArgs() {
-    return [this.keyPath, this.keyTypes, this.key, this.oldValue];
+    return [this.keyPath, this.keyTypes, this.oldValue];
   }
   getAction() {
     return {
       action: 'delete',
-      key: this.key,
+      key: this.getKey(),
       value: this.oldValue,
     };
   }
@@ -1665,18 +1646,20 @@ class ZMapDeleteEvent extends ZMapEvent {
     let index = 0;
     // skip method
     index += Uint32Array.BYTES_PER_ELEMENT;
-    
+
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    const kpjs = textDecoder.decode(kpjb);
+    const keyPath = JSON.parse(kpjs); 
     index += kpjbLength;
     index = align4(index);
 
     const ktjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
-    const keyTypes = JSON.parse(textDecoder.decode(ktjb)); 
+    const ktjs = textDecoder.decode(ktjb);
+    const keyTypes = JSON.parse(ktjs); 
     index += ktjbLength;
     index = align4(index);
 
@@ -1803,14 +1786,16 @@ class ZArrayPushEvent extends ZArrayEvent {
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    const kpjs = textDecoder.decode(kpjb);
+    const keyPath = JSON.parse(kpjs); 
     index += kpjbLength;
     index = align4(index);
 
     const ktjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
-    const keyTypes = JSON.parse(textDecoder.decode(ktjb)); 
+    const ktjs = textDecoder.decode(ktjb);
+    const keyTypes = JSON.parse(ktjs); 
     index += ktjbLength;
     index = align4(index);
 
@@ -1904,14 +1889,16 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
+    const kpjs = textDecoder.decode(kpjb);
+    const keyPath = JSON.parse(kpjs); 
     index += kpjbLength;
     index = align4(index);
 
     const ktjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
     const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
-    const keyTypes = JSON.parse(textDecoder.decode(ktjb)); 
+    const ktjs = textDecoder.decode(ktjb);
+    const keyTypes = JSON.parse(ktjs); 
     index += ktjbLength;
     index = align4(index);
     

@@ -4,7 +4,7 @@
   "description": "",
   "main": "z.mjs",
   "scripts": {
-    "test": "mocha --timeout 120000"
+    "test": "mocha --timeout 120000 --inspect"
   },
   "repository": {
     "type": "git",
