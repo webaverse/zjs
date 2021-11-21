@@ -161,13 +161,87 @@ const _isKeyPathPrefix = (a, b) => {
     return false;
   }
 };
-const _parentWasSet = (event, historyStartIndex, historyEndIndex, history) => {
+const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
+  const historyElementData = new Uint8Array(
+    historyData.buffer,
+    historyData.byteOffset + historyOffsets[historyIndex],
+  );
+  const dataView = _makeDataView(historyElementData);
+
+  let index = 0;
+  const eventType = dataView.getUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+
+  const Cons = ZEVENT_CONSTRUCTORS[eventType];
+
+  const resolvePriority = dataView.getUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+
+  const kpjbLength = dataView.getUint32(index, true);
+  index += Uint32Array.BYTES_PER_ELEMENT;
+
+  try {
+    const kpjb = new Uint8Array(historyElementData.buffer, historyElementData.byteOffset + index, kpjbLength);
+    const s = textDecoder.decode(kpjb);
+    const keyPath = JSON.parse(s); 
+    index += kpjbLength;
+    index = align4(index);
+
+    switch (Cons) {
+      case ZNullEvent: {
+        return {
+          keyPath,
+          resolvePriority,
+          isZNullEvent: true,
+        };
+        break;
+      }
+      case ZMapSetEvent: {
+        return {
+          keyPath,
+          resolvePriority,
+          isZMapSetEvent: true,
+        };
+        break;
+      }
+      case ZMapDeleteEvent: {
+        return {
+          keyPath,
+          resolvePriority,
+          isZMapDeleteEvent: true,
+        };
+        break;
+      }
+      case ZArrayPushEvent: {
+        return {
+          keyPath,
+          resolvePriority,
+          isZArrayPushEvent: true,
+        };
+        break;
+      }
+      case ZArrayDeleteEvent: {
+        return {
+          keyPath,
+          resolvePriority,
+          isZArrayDeleteEvent: true,
+        };
+        break;
+      }
+      default: {
+        throw new Error('unknown history buffer event type');
+        break;
+      }
+    }
+  } catch (e) {
+    console.warn('could not parse history buffer', historyIndex, eventType, Cons, resolvePriority, kpjbLength);
+
+    throw e;
+  }
+};
+const _parentWasSet = (event, historyStartIndex, historyEndIndex, historyData, historyOffsets) => {
   for (let i = historyStartIndex; i < historyEndIndex; i++) {
-    const e = history.get(i);
-    /* if (!e) {
-      console.warn('no event', i, historyStartIndex, historyEndIndex, history);
-      throw new Error('no event');
-    } */
+    const e = _parseHistoryBuffer(historyData, historyOffsets, i);
     if ( // if this is a parent overwrite
       _isKeyPathPrefix(e.keyPath, event.keyPath) &&
         (
@@ -181,12 +255,12 @@ const _parentWasSet = (event, historyStartIndex, historyEndIndex, history) => {
   }
   return false;
 };
-const _getConflicts = (event, historyStartIndex, historyEndIndex, history, resolvePriority, conflictSpec) => {
+const _getConflicts = (event, historyStartIndex, historyEndIndex, historyData, historyOffsets, resolvePriority, conflictSpec) => {
   let conflictFound = false;
   conflictSpec.weAreHighestPriority = true;
   
   for (let i = historyStartIndex; i < historyEndIndex; i++) {
-    const e = history.get(i);
+    const e = _parseHistoryBuffer(historyData, historyOffsets, i);
     if ( // if this is a conflicting event
       ((e.isZMapSetEvent) || (e.isZMapDeleteEvent)) &&
         _keyPathEquals(e.keyPath, event.keyPath)
@@ -201,9 +275,9 @@ const _getConflicts = (event, historyStartIndex, historyEndIndex, history, resol
   
   return conflictFound;
 };
-const _alreadyDeleted = (event, historyStartIndex, historyEndIndex, history) => {
+const _alreadyDeleted = (event, historyStartIndex, historyEndIndex, historyData, historyOffsets) => {
   for (let i = historyStartIndex; i < historyEndIndex; i++) {
-    const e = history.get(i);
+    const e = _parseHistoryBuffer(historyData, historyOffsets, i);
     if ( // if this is a conflicting delete
       (e.isZArrayDeleteEvent) &&
         _keyPathEquals(e.keyPath, event.keyPath)
@@ -235,16 +309,14 @@ class TransactionCache {
     globalThis.maxHistoryTailLength = Math.max(globalThis.maxHistoryTailLength, historyTailLength);
     const historyStartIndex = this.startClock;
     const historyEndIndex = this.doc.clock;
-    const history = this.doc.history;
-    
-    // console.log('got history', this.doc.clock, this.startClock, historyTailLength, this.doc.historyMin, historyStartIndex, historyEndIndex);
+    const {historyData, historyOffsets}  = this.doc;
     
     const rebasedEvents = this.events.map(event => {
       if (event.isZMapSetEvent || event.isZMapDeleteEvent) {
-        if (_parentWasSet(event, historyStartIndex, historyEndIndex, history)) {
+        if (_parentWasSet(event, historyStartIndex, historyEndIndex, historyData, historyOffsets)) {
           // console.log('torpedo self due to parent conflict');
           return new ZNullEvent();
-        } else if (_getConflicts(event, historyStartIndex, historyEndIndex, history, this.resolvePriority, conflictSpec)) {
+        } else if (_getConflicts(event, historyStartIndex, historyEndIndex, historyData, historyOffsets, this.resolvePriority, conflictSpec)) {
           /* const _isHighestPriority = () => {
             return conflicts.every(([p, e]) => {
               return this.resolvePriority <= p;
@@ -263,7 +335,7 @@ class TransactionCache {
           return event;
         }
       } else if (event.isZArrayPushEvent) {
-        if (_parentWasSet(event, historyStartIndex, historyEndIndex, history)) {
+        if (_parentWasSet(event, historyStartIndex, historyEndIndex, historyData, historyOffsets)) {
           return new ZNullEvent();
         } else {
           // console.log('no conflicts');
@@ -271,8 +343,8 @@ class TransactionCache {
         }
       } else if (event.isZArrayDeleteEvent) {
         if (
-          _parentWasSet(event, historyStartIndex, historyEndIndex, history) ||
-          _alreadyDeleted(event, historyStartIndex, historyEndIndex, history)
+          _parentWasSet(event, historyStartIndex, historyEndIndex, historyData, historyOffsets) ||
+          _alreadyDeleted(event, historyStartIndex, historyEndIndex, historyData, historyOffsets)
         ) {
           // console.log('torpedo self due to parent conflict');
           return new ZNullEvent();
@@ -365,15 +437,22 @@ class TransactionCache {
   }
 }
 
-const MAX_HISTORY_LENGTH = 500;
+const HISTORY_DATA_SIZE = 1024 * 1024; // 1 MB
+const HISTORY_OFFSETS_SIZE = HISTORY_DATA_SIZE / 4;
 class ZDoc extends ZEventEmitter {
-  constructor(state = {}, clock = 0, history = new Map(), historyMin = 0) {
+  constructor(
+    state = {},
+    clock = 0,
+    historyData = new Uint8Array(HISTORY_DATA_SIZE),
+    historyOffsets = new Uint32Array(HISTORY_OFFSETS_SIZE / Uint32Array.BYTES_PER_ELEMENT),
+ ) {
     super();
 
     this.state = state;
     this.clock = clock;
-    this.history = history;
-    this.historyMin = 0;
+
+    this.historyData = historyData;
+    this.historyOffsets = historyOffsets;
     
     this.transactionDepth = 0;
     this.transactionCache = null;
@@ -418,6 +497,19 @@ class ZDoc extends ZEventEmitter {
   toJSON() {
     return _jsonify(this.state);
   }
+  pushHistory(event) {
+    const eventTargetBuffer = new Uint8Array(
+      this.historyData.buffer,
+      this.historyData.byteOffset + this.historyOffsets[this.clock],
+    );
+    const eventByteLength = event.serializeHistory(eventTargetBuffer);
+
+    this.clock++;
+    this.historyOffsets[this.clock] = eventTargetBuffer.byteOffset + eventByteLength;
+    // console.log('set history offsets', historyOffsets);
+
+    globalThis.maxHistoryLength = Math.max(globalThis.maxHistoryLength, this.clock); // XXX temp
+  }
   pushTransaction(origin) {
     if (++this.transactionDepth === 1) {
       this.transactionCache = new TransactionCache(this, origin);
@@ -432,8 +524,7 @@ class ZDoc extends ZEventEmitter {
       }
       for (const event of this.transactionCache.events) {
         event.resolvePriority = this.transactionCache.resolvePriority;
-        this.history.set(this.clock++, event);
-        globalThis.maxHistoryLength = Math.max(globalThis.maxHistoryLength, this.clock);
+        this.pushHistory(event);
       }
       /* if (this.transactionCache.events.some(e => e.constructor.name === 'ZEvent')) {
         throw new Error('bad construction');
@@ -633,8 +724,8 @@ class ZDoc extends ZEventEmitter {
     
     this.clock = clock;
     this.state = state;
-    this.history = new Map();
-    this.historyMin = 0;
+    this.historyData = new Uint8Array(HISTORY_DATA_SIZE);
+    this.historyOffsets = new Uint32Array(HISTORY_OFFSETS_SIZE / Uint32Array.BYTES_PER_ELEMENT);
   }
   getImplByKeyPath(keyPath, keyTypes) {
     let binding = this.state;
@@ -672,13 +763,8 @@ class ZDoc extends ZEventEmitter {
     const newDoc = new ZDoc(
       newState,
       this.clock,
-      new Map(Array.from(this.history.entries()).map(([index, e]) => {
-        return [
-          index,
-          e.clone(),
-        ];
-      })),
-      this.historyMin,
+      this.historyData.slice(),
+      this.historyOffsets.slice(),
     );
 
     // remap old impls onto new bindings
@@ -853,7 +939,7 @@ const _ensureImplBound = (v, parent) => {
   }
 };
 class ZMap extends ZObservable {
-  constructor(binding = ZMap.nativeConstructor(), doc = new Z.Doc()) {
+  constructor(binding = ZMap.nativeConstructor(), doc = new ZDoc()) {
     super(binding, doc);
     
     this.isZMap = true;
@@ -1001,7 +1087,7 @@ class ZMap extends ZObservable {
 }
 
 class ZArray extends ZObservable {
-  constructor(binding = ZArray.nativeConstructor(), doc = new Z.Doc()) {
+  constructor(binding = ZArray.nativeConstructor(), doc = new ZDoc()) {
     super(binding, doc);
     
     this.isZArray = true;
@@ -1210,6 +1296,25 @@ class ZEvent {
   }
   static deserializeUpdate(uint8Array) {
     throw new Error('not implemented');
+  }
+  serializeHistory(uint8Array) {
+    const dataView = _makeDataView(uint8Array);
+    
+    let index = 0;
+    dataView.setUint32(index, this.constructor.METHOD, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+
+    dataView.setUint32(index, this.resolvePriority, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+
+    const kpjb = this.getKeyPathBuffer();
+    dataView.setUint32(index, kpjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(kpjb, index);
+    index += kpjb.byteLength;
+    index = align4(index);
+
+    return index;
   }
   clone() {
     const event = new this.constructor(...this.getConstructorArgs());
@@ -1820,8 +1925,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
 
     for (const event of transactionCache.events) {
       event.resolvePriority = transactionCache.resolvePriority;
-      doc.history.set(doc.clock++, event);
-      globalThis.maxHistoryLength = Math.max(globalThis.maxHistoryLength, doc.clock);
+      doc.pushHistory(event);
     }
 
     if (doc.mirror) {
