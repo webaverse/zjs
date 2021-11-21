@@ -727,10 +727,10 @@ class ZDoc extends ZEventEmitter {
     this.historyData = new Uint8Array(HISTORY_DATA_SIZE);
     this.historyOffsets = new Uint32Array(HISTORY_OFFSETS_SIZE / Uint32Array.BYTES_PER_ELEMENT);
   }
-  getImplByKeyPath(keyPath, keyTypes) {
+  getImplByKeyPathParent(keyPath, keyTypes) {
     let binding = this.state;
     let impl = bindingsMap.get(binding);
-    for (let i = 0; i < keyPath.length; i++) {
+    for (let i = 0; i < keyPath.length - 1; i++) {
       const key = keyPath[i];
       const keyType = keyTypes[i];
       // let value = binding[key];
@@ -1222,9 +1222,7 @@ class ZEvent {
   }
   bindToDoc(doc) {
     if (doc) {
-      const keyPath = this.keyPath.slice(0, -1);
-      const keyTypes = this.keyTypes.slice(0, -1);
-      this.impl = doc.getImplByKeyPath(keyPath, keyTypes);
+      this.impl = doc.getImplByKeyPathParent(this.keyPath, this.keyTypes);
       if (!this.impl) {
         console.warn('cannot bind impl to key path', doc.state, keyPath, keyTypes);
         throw new Error('cannot bind impl to key path');
