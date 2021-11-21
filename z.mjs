@@ -359,11 +359,12 @@ class TransactionCache {
     const historyEndIndex = this.doc.clock;
     const {historyData, historyOffsets}  = this.doc;
     
-    const rebasedEvents = this.events.map(event => {
+    for (let i = 0; i < this.events.length; i++) {
+      const event = this.events[i];
       if (event.isZMapSetEvent || event.isZMapDeleteEvent) {
         if (_parentWasSet(event, historyStartIndex, historyEndIndex, historyData, historyOffsets)) {
           // console.log('torpedo self due to parent conflict');
-          return new ZNullEvent();
+          this.events[i] = nullEvent;
         } else if (_getConflicts(event, historyStartIndex, historyEndIndex, historyData, historyOffsets, this.resolvePriority, conflictSpec)) {
           /* const _isHighestPriority = () => {
             return conflicts.every(([p, e]) => {
@@ -373,21 +374,18 @@ class TransactionCache {
 
           if (conflictSpec.weAreHighestPriority) {
             // console.log('survive due to high prio');
-            return event;
           } else {
             // console.log('torpedo self due to low prio');
-            return new ZNullEvent();
+            this.events[i] = nullEvent;
           }
         } else {
           // console.log('no conflicts');
-          return event;
         }
       } else if (event.isZArrayPushEvent) {
         if (_parentWasSet(event, historyStartIndex, historyEndIndex, historyData, historyOffsets)) {
-          return new ZNullEvent();
+          this.events[i] = nullEvent;
         } else {
           // console.log('no conflicts');
-          return event;
         }
       } else if (event.isZArrayDeleteEvent) {
         if (
@@ -395,20 +393,16 @@ class TransactionCache {
           _alreadyDeleted(event, historyStartIndex, historyEndIndex, historyData, historyOffsets)
         ) {
           // console.log('torpedo self due to parent conflict');
-          return new ZNullEvent();
+          this.events[i] = nullEvent;
         } else {
           // console.log('no conflicts');
-          return event;
         }
       } else if (event.isZNullEvent) {
         // console.log('skip null event');
-        return event;
       } else {
         console.warn('unknown event type', event);
-        return event;
       }
-    });
-    this.events = rebasedEvents;
+    }
     this.startClock += historyTailLength;
   }
   serializeUpdate() {    
@@ -1901,6 +1895,7 @@ const ZEVENT_CONSTRUCTORS = [
   ZArrayPushEvent,
   ZArrayDeleteEvent,
 ];
+const nullEvent = new ZNullEvent();
 
 // globalThis.maxHistoryLength = 0;
 // globalThis.maxHistoryTailLength = 0;
