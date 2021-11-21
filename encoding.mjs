@@ -2,16 +2,16 @@ import {align4} from './util.mjs';
 
 const ADDENDUM_TYPES = (() => {
   let iota = 0;
-  return {
-    Uint8Array: ++iota,
-    Uint16Array: ++iota,
-    Uint32Array: ++iota,
-    Int8Array: ++iota,
-    Int16Array: ++iota,
-    Int32Array: ++iota,
-    Float32Array: ++iota,
-    Float64Array: ++iota,
-  };
+  const result = new Map();
+  result.set(Uint8Array, ++iota);
+  result.set(Uint16Array, ++iota);
+  result.set(Uint32Array, ++iota);
+  result.set(Int8Array, ++iota);
+  result.set(Int16Array, ++iota);
+  result.set(Int32Array, ++iota);
+  result.set(Float32Array, ++iota);
+  result.set(Float64Array, ++iota);
+  return result;
 })();
 const ADDENDUM_CONSTRUCTORS = [
   null, // start at 1
@@ -29,6 +29,16 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 const textUint8Array = new Uint8Array(1024 * 1024);
 
+const encodableConstructors = [
+  Uint8Array,
+  Uint16Array,
+  Uint32Array,
+  Int8Array,
+  Int16Array,
+  Int32Array,
+  Float32Array,
+  Float64Array,
+];
 function zbencode(o) {
   let recursionIndex = 0;
   const addendums = [];
@@ -36,26 +46,19 @@ function zbencode(o) {
   const addendumTypes = [];
   const _recurse = o => {
     recursionIndex++;
-    if (
-      o instanceof Uint8Array ||
-      o instanceof Uint16Array ||
-      o instanceof Uint32Array ||
-      o instanceof Int8Array ||
-      o instanceof Int16Array ||
-      o instanceof Int32Array ||
-      o instanceof Float32Array ||
-      o instanceof Float64Array
-    ) {
+    if (!!o && !!o.constructor && encodableConstructors.includes(o.constructor)) {
       addendums.push(o);
       addendumIndexes.push(recursionIndex);
-      const addendumType = ADDENDUM_TYPES[o.constructor.name];
+      const addendumType = ADDENDUM_TYPES.get(o.constructor);
+      if (addendumType === undefined) {
+        throw new Error(`Unsupported addendum type: ${o.constructor.name}`);
+      }
       addendumTypes.push(addendumType)
       return null;
     } else {
       return o;
     }
   };
-  // const j = _recurse(o);
   const s = JSON.stringify(o, function(k, v) {
     return _recurse(v);
   });

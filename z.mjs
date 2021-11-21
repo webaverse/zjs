@@ -499,13 +499,13 @@ class TransactionCache {
 }
 
 const HISTORY_DATA_SIZE = 1024 * 1024; // 1 MB
-const HISTORY_OFFSETS_SIZE = HISTORY_DATA_SIZE / 4;
+const HISTORY_OFFSETS_LENGTH = HISTORY_DATA_SIZE / Uint32Array.BYTES_PER_ELEMENT;
 class ZDoc extends ZEventEmitter {
   constructor(
     state = {},
     clock = 0,
     historyData = new Uint8Array(HISTORY_DATA_SIZE),
-    historyOffsets = new Uint32Array(HISTORY_OFFSETS_SIZE / Uint32Array.BYTES_PER_ELEMENT),
+    historyOffsets = new Uint32Array(HISTORY_OFFSETS_LENGTH),
  ) {
     super();
 
@@ -785,7 +785,7 @@ class ZDoc extends ZEventEmitter {
     this.clock = clock;
     this.state = state;
     // this.historyData = new Uint8Array(HISTORY_DATA_SIZE);
-    // this.historyOffsets = new Uint32Array(HISTORY_OFFSETS_SIZE / Uint32Array.BYTES_PER_ELEMENT);
+    // this.historyOffsets = new Uint32Array(HISTORY_OFFSETS_LENGTH);
   }
   getImplByKeyPathParent(keyPath, keyTypes) {
     let binding = this.state;
@@ -827,11 +827,11 @@ class ZDoc extends ZEventEmitter {
     );
 
     // remap old impls onto new bindings
-    const _recurse = (oldBinding, newBinding) => {
+    const _recurseDocClone = (oldBinding, newBinding) => {
       const oldImpl = bindingsMap.get(oldBinding);
       if (oldImpl?.isZDoc) {
         for (const k in oldBinding) {
-          _recurse(oldBinding[k], newBinding[k]);
+          _recurseDocClone(oldBinding[k], newBinding[k]);
           bindingParentsMap.set(newBinding[k], newBinding);
         }
       } else if (oldImpl?.isZArray) {
@@ -839,7 +839,7 @@ class ZDoc extends ZEventEmitter {
         bindingsMap.set(newBinding, newImpl);
 
         for (let i = 0; i < oldBinding.e.length; i++) {
-          _recurse(oldBinding.e[i], newBinding.e[i]);
+          _recurseDocClone(oldBinding.e[i], newBinding.e[i]);
 
           const childImpl = bindingsMap.get(newBinding.e[i]);
           if (childImpl) {
@@ -851,7 +851,7 @@ class ZDoc extends ZEventEmitter {
         bindingsMap.set(newBinding, newImpl);
 
         for (const k in oldBinding) {
-          _recurse(oldBinding[k], newBinding[k]);
+          _recurseDocClone(oldBinding[k], newBinding[k]);
 
           const childImpl = bindingsMap.get(newBinding[k]);
           if (childImpl) {
@@ -860,17 +860,17 @@ class ZDoc extends ZEventEmitter {
         }
       } else if (Array.isArray(oldBinding)) {
         for (let i = 0; i < oldBinding.length; i++) {
-          _recurse(oldBinding[i], newBinding[i]);
+          _recurseDocClone(oldBinding[i], newBinding[i]);
         }
       } else if (oldBinding !== null && typeof oldBinding === 'object') {
         for (const k in oldBinding) {
-          _recurse(oldBinding[k], newBinding[k]);
+          _recurseDocClone(oldBinding[k], newBinding[k]);
         }
       } else {
         // nothing
       }
     };
-    _recurse(oldState, newState);
+    _recurseDocClone(oldState, newState);
 
     return newDoc;
   }
