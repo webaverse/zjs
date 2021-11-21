@@ -733,7 +733,6 @@ class ZDoc extends ZEventEmitter {
     for (let i = 0; i < keyPath.length - 1; i++) {
       const key = keyPath[i];
       const keyType = keyTypes[i];
-      // let value = binding[key];
       
       const child = (() => {
         switch (keyType) {
