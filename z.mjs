@@ -138,7 +138,7 @@ const _keyPathEquals = (a, b) => {
     for (let i = 0; i < a.length; i++) {
       const ae = a[i];
       const be = b[i];
-      if (ae[0] !== be[0] /*|| ae[1] !== be[1]*/) {
+      if (ae !== be) {
         return false;
       }
     }
@@ -152,7 +152,7 @@ const _isKeyPathPrefix = (a, b) => {
     for (let i = 0; i < a.length; i++) {
       const ae = a[i];
       const be = b[i];
-      if (ae[0] !== be[0] /*|| ae[1] !== be[1]*/) {
+      if (ae !== be) {
         return false;
       }
     }
@@ -636,27 +636,22 @@ class ZDoc extends ZEventEmitter {
     this.history = new Map();
     this.historyMin = 0;
   }
-  getImplByKeyPath(keyPath) {
+  getImplByKeyPath(keyPath, keyTypes) {
     let binding = this.state;
     let impl = bindingsMap.get(binding);
-    for (let [key, type] of keyPath) {
-      let value = binding[key];
+    for (let i = 0; i < keyPath.length; i++) {
+      const key = keyPath[i];
+      const keyType = keyTypes[i];
+      // let value = binding[key];
       
       const child = (() => {
-        switch (type) {
+        switch (keyType) {
           case 'a': return impl.get(key, ZArray);
           case 'm': return impl.get(key, ZMap);
-          case 'ea':
-          case 'em':
-          case 'ev': {
-            switch (type.slice(1)) {
-              case 'a': return impl.getId(key, ZArray);
-              case 'm': return impl.getId(key, ZMap);
-              case 'v': return impl.getId(key);
-              default: return undefined;
-            }
-          }
           case 'v': return impl.get(key);
+          case 'ea': return impl.getId(key, ZArray);
+          case 'em': return impl.getId(key, ZMap);
+          case 'ev': return impl.getId(key);
           default: return undefined;
         }
       })();
@@ -784,8 +779,9 @@ class ZObservable {
       }
     }
   }
-  getKeyPath() {
+  getKeyPathSpec() {
     const keyPath = [];
+    const keyTypes = [];
     for (let binding = this.binding;;) {
       const parentBinding = bindingParentsMap.get(binding);
 
@@ -799,7 +795,8 @@ class ZObservable {
             const matchingKeys = keys.filter(k => parentBinding[k] === binding);
             if (matchingKeys.length === 1) {
               const key = matchingKeys[0];
-              keyPath.push([key, keyType]);
+              keyPath.push(key);
+              keyTypes.push(keyType);
             } else {
               console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
               throw new Error('zarray did not have unique key (had ' + matchingKeys.length + ')');
@@ -812,7 +809,8 @@ class ZObservable {
           const zid = parentImpl.binding.i[index];
           const impl = bindingsMap.get(binding);
           const type = 'e' + (_getImplKeyType(impl) || 'v');
-          keyPath.push([zid, type]);
+          keyPath.push(zid);
+          keyTypes.push(type);
         } else if (parentImpl.isZMap) {
           const keys = Object.keys(parentBinding);
           const matchingKeys = keys.filter(k => parentBinding[k] === binding);
@@ -820,7 +818,8 @@ class ZObservable {
             const key = matchingKeys[0];
             const impl = bindingsMap.get(binding);
             const type = _getImplKeyType(impl) || 'v';
-            keyPath.push([key, type]);
+            keyPath.push(key);
+            keyTypes.push(type);
           } else {
             console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
             throw new Error('zmap did not have unique key (had ' + matchingKeys.length + ')');
@@ -833,7 +832,10 @@ class ZObservable {
         break;
       }
     }
-    return keyPath.reverse();
+    return {
+      keyPath: keyPath.reverse(),
+      keyTypes: keyTypes.reverse(),
+    };
   }
   toJSON() {
     return this.binding;
@@ -884,11 +886,13 @@ class ZMap extends ZObservable {
   set(k, v) {
     _ensureImplBound(v, this);
     
-    const keyPath = this.getKeyPath();
+    const {keyPath, keyTypes} = this.getKeyPathSpec();
     const keyType = _getImplKeyType(v) || 'v';
-    keyPath.push([k, keyType]);
+    keyPath.push(k);
+    keyTypes.push(keyType);
     const event = new ZMapSetEvent(
       keyPath,
+      keyTypes,
       k,
       v
     );
@@ -906,10 +910,12 @@ class ZMap extends ZObservable {
   }
   delete(k) {
     delete this.binding[k];
-    const keyPath = this.getKeyPath();
-    keyPath.push([k, 'v']);
+    const {keyPath, keyTypes} = this.getKeyPathSpec();
+    keyPath.push(k);
+    keyTypes.push('v');
     const event = new ZMapDeleteEvent(
       keyPath,
+      keyTypes,
       k
     );
     event.bindToImpl(this);
@@ -1047,12 +1053,14 @@ class ZArray extends ZObservable {
     
     const zid = _makeId();
     
-    const keyPath = this.getKeyPath();
+    const {keyPath, keyTypes} = this.getKeyPathSpec();
     const impl = bindingsMap.get(arr[0]) ?? arr[0];
-    const type = 'e' + (_getImplKeyType(impl) || 'v');
-    keyPath.push([zid, type]);
+    const keyType = 'e' + (_getImplKeyType(impl) || 'v');
+    keyPath.push(zid);
+    keyTypes.push(keyType);
     const event = new ZArrayPushEvent(
       keyPath,
+      keyTypes,
       arr
     );
     event.bindToImpl(this);
@@ -1074,10 +1082,12 @@ class ZArray extends ZObservable {
     
     const zid = this.binding.i[index];
     
-    const keyPath = this.getKeyPath();
-    keyPath.push([zid, 'ev']);
+    const {keyPath, keyTypes} = this.getKeyPathSpec();
+    keyPath.push(zid);
+    keyTypes.push('ev');
     const event = new ZArrayDeleteEvent(
-      keyPath
+      keyPath,
+      keyTypes,
     );
     event.bindToImpl(this);
     if (this.doc) {
@@ -1116,8 +1126,9 @@ class ZArray extends ZObservable {
 
 let zEventsIota = 0;
 class ZEvent {
-  constructor(keyPath) {
+  constructor(keyPath, keyTypes) {
     this.keyPath = keyPath;
+    this.keyTypes = keyTypes;
 
     this.impl = null;
     this.keyPathBuffer = null;
@@ -1125,9 +1136,11 @@ class ZEvent {
   }
   bindToDoc(doc) {
     if (doc) {
-      this.impl = doc.getImplByKeyPath(this.keyPath.slice(0, -1));
+      const keyPath = this.keyPath.slice(0, -1);
+      const keyTypes = this.keyTypes.slice(0, -1);
+      this.impl = doc.getImplByKeyPath(keyPath, keyTypes);
       if (!this.impl) {
-        console.warn('cannot bind impl to key path', doc.state, this.keyPath.slice(0, -1));
+        console.warn('cannot bind impl to key path', doc.state, keyPath, keyTypes);
         throw new Error('cannot bind impl to key path');
       }
       // this.doc = doc;
@@ -1142,6 +1155,7 @@ class ZEvent {
   gc() {
     this.impl = null;
     this.keyPathBuffer = null;
+    this.keyTypesBuffer = null;
   }
   getEvent() {
     const actionSpec = this.getAction();
@@ -1180,6 +1194,14 @@ class ZEvent {
     }
     return this.keyPathBuffer;
   }
+  getKeyTypesBuffer() {
+    if (this.keyTypesBuffer === null) {
+      this.keyTypesBuffer = textEncoder.encode(
+        JSON.stringify(this.keyTypes)
+      );
+    }
+    return this.keyTypesBuffer;
+  }
   computeUpdateByteLength() {
     throw new Error('not implemented');
   }
@@ -1197,7 +1219,7 @@ class ZEvent {
 }
 class ZNullEvent extends ZEvent {
   constructor() {
-    super([]);
+    super([], []);
     
     this.isZNullEvent = true;
   }
@@ -1229,8 +1251,8 @@ class ZNullEvent extends ZEvent {
   }
 }
 class ZMapEvent extends ZEvent {
-  constructor(keyPath) {
-    super(keyPath);
+  constructor(keyPath, keyTypes) {
+    super(keyPath, keyTypes);
   
     this.keyBuffer = null;
     this.valueBuffer = null;
@@ -1257,8 +1279,8 @@ class ZMapEvent extends ZEvent {
   }
 }
 class ZArrayEvent extends ZEvent {
-  constructor(keyPath) {
-    super(keyPath);
+  constructor(keyPath, keyTypes) {
+    super(keyPath, keyTypes);
     
     this.arrBuffer = null;
     
@@ -1277,8 +1299,8 @@ class ZArrayEvent extends ZEvent {
   }
 }
 class ZMapSetEvent extends ZMapEvent {
-  constructor(keyPath, key, value) {
-    super(keyPath);
+  constructor(keyPath, keyTypes, key, value) {
+    super(keyPath, keyTypes);
     
     this.key = key;
     this.value = _getBindingForValue(value);
@@ -1294,7 +1316,7 @@ class ZMapSetEvent extends ZMapEvent {
     this.impl.binding[this.key] = this.value;
   }
   getConstructorArgs() {
-    return [this.key, this.value];
+    return [this.keyPath, this.keyTypes, this.key, this.value];
   }
   getAction() {
     return {
@@ -1311,8 +1333,12 @@ class ZMapSetEvent extends ZMapEvent {
     totalSize += this.getKeyPathBuffer().byteLength; // key path data
     totalSize = align4(totalSize);
     
-    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
-    totalSize += this.getKeyBuffer().byteLength; // key data
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
+    totalSize += this.getKeyBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key types length
+    totalSize += this.getKeyTypesBuffer().byteLength; // key types data
     totalSize = align4(totalSize);
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // value length
@@ -1333,6 +1359,13 @@ class ZMapSetEvent extends ZMapEvent {
     index += Uint32Array.BYTES_PER_ELEMENT;
     uint8Array.set(kpjb, index);
     index += kpjb.byteLength;
+    index = align4(index);
+
+    const ktjb = this.getKeyTypesBuffer();
+    dataView.setUint32(index, ktjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(ktjb, index);
+    index += ktjb.byteLength;
     index = align4(index);
     
     const kb = this.getKeyBuffer();
@@ -1358,10 +1391,16 @@ class ZMapSetEvent extends ZMapEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
+    index = align4(index);
+
+    const ktjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
+    const keyTypes = JSON.parse(textDecoder.decode(ktjb)); 
+    index += ktjbLength;
     index = align4(index);
 
     const kbLength = dataView.getUint32(index, true);
@@ -1380,14 +1419,15 @@ class ZMapSetEvent extends ZMapEvent {
 
     return new this(
       keyPath,
+      keyTypes,
       key,
       value
     );
   }
 }
 class ZMapDeleteEvent extends ZMapEvent {
-  constructor(keyPath, key, oldValue = null) {
-    super(keyPath);
+  constructor(keyPath, keyTypes, key, oldValue = null) {
+    super(keyPath, keyTypes);
 
     this.key = key;
     this.oldValue = oldValue;
@@ -1401,7 +1441,7 @@ class ZMapDeleteEvent extends ZMapEvent {
     delete this.impl.binding[this.key];
   }
   getConstructorArgs() {
-    return [this.keyPath, this.key, this.oldValue];
+    return [this.keyPath, this.keyTypes, this.key, this.oldValue];
   }
   getAction() {
     return {
@@ -1416,6 +1456,10 @@ class ZMapDeleteEvent extends ZMapEvent {
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
     totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key types length
+    totalSize += this.getKeyTypesBuffer().byteLength; // key types data
     totalSize = align4(totalSize);
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // key length
@@ -1437,6 +1481,13 @@ class ZMapDeleteEvent extends ZMapEvent {
     uint8Array.set(kpjb, index);
     index += kpjb.byteLength;
     index = align4(index);
+
+    const ktjb = this.getKeyTypesBuffer();
+    dataView.setUint32(index, ktjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(ktjb, index);
+    index += ktjb.byteLength;
+    index = align4(index);
     
     const kb = this.getKeyBuffer();
     dataView.setUint32(index, kb.byteLength, true);
@@ -1454,10 +1505,16 @@ class ZMapDeleteEvent extends ZMapEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
+    index = align4(index);
+
+    const ktjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
+    const keyTypes = JSON.parse(textDecoder.decode(ktjb)); 
+    index += ktjbLength;
     index = align4(index);
 
     const kbLength = dataView.getUint32(index, true);
@@ -1469,13 +1526,14 @@ class ZMapDeleteEvent extends ZMapEvent {
     
     return new this(
       keyPath,
+      keyTypes,
       key
     );
   }
 }
 class ZArrayPushEvent extends ZArrayEvent {
-  constructor(keyPath, arr) {
-    super(keyPath);
+  constructor(keyPath, keyTypes, arr) {
+    super(keyPath, keyTypes);
 
     // console.log('check binding', arr, this.arr);
     this.arr = _getBindingForArray(arr);
@@ -1489,10 +1547,10 @@ class ZArrayPushEvent extends ZArrayEvent {
     const arrBinding = this.arr;
     this.index = this.impl.binding.e.length;
     this.impl.binding.e.push.apply(this.impl.binding.e, arrBinding);
-    const zid = this.keyPath[this.keyPath.length - 1][0];
+    const zid = this.keyPath[this.keyPath.length - 1];
     this.impl.binding.i.push(zid);
 
-    const keyType = this.keyPath[this.keyPath.length - 1][1];
+    const keyType = this.keyTypes[this.keyTypes.length - 1];
     const Type = _getImplConstructorForKeyType(keyType);
     const value = this.arr[0];
     let impl = bindingsMap.get(value);
@@ -1505,10 +1563,10 @@ class ZArrayPushEvent extends ZArrayEvent {
     }
   }
   getConstructorArgs() {
-    return [this.keyPath, this.arr];
+    return [this.keyPath, this.keyTypes, this.arr];
   }
   getAction() {
-    const keyType = this.keyPath[this.keyPath.length - 1][1];
+    const keyType = this.keyTypes[this.keyTypes.length - 1];
     const Type = _getImplConstructorForKeyType(keyType);
     const value = this.arr[0];
     let impl = bindingsMap.get(value);
@@ -1533,6 +1591,10 @@ class ZArrayPushEvent extends ZArrayEvent {
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
     totalSize += this.getKeyPathBuffer().byteLength; // key path data
     totalSize = align4(totalSize);
+
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key types length
+    totalSize += this.getKeyTypesBuffer().byteLength; // key types data
+    totalSize = align4(totalSize);
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // arr length
     totalSize += this.getArrBuffer().byteLength; // arr data
@@ -1550,9 +1612,15 @@ class ZArrayPushEvent extends ZArrayEvent {
     const kpjb = this.getKeyPathBuffer();
     dataView.setUint32(index, kpjb.byteLength, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    
     uint8Array.set(kpjb, index);
     index += kpjb.byteLength;
+    index = align4(index);
+
+    const ktjb = this.getKeyTypesBuffer();
+    dataView.setUint32(index, ktjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(ktjb, index);
+    index += ktjb.byteLength;
     index = align4(index);
     
     const arrb = this.getArrBuffer();
@@ -1572,10 +1640,16 @@ class ZArrayPushEvent extends ZArrayEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
+    index = align4(index);
+
+    const ktjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
+    const keyTypes = JSON.parse(textDecoder.decode(ktjb)); 
+    index += ktjbLength;
     index = align4(index);
 
     const arrLength = dataView.getUint32(index, true);
@@ -1588,13 +1662,14 @@ class ZArrayPushEvent extends ZArrayEvent {
     
     return new this(
       keyPath,
+      keyTypes,
       arr
     );
   }
 }
 class ZArrayDeleteEvent extends ZArrayEvent {
-  constructor(keyPath) {
-    super(keyPath);
+  constructor(keyPath, keyTypes) {
+    super(keyPath, keyTypes);
 
     this.index = -1;
     this.oldValue = null;
@@ -1604,13 +1679,13 @@ class ZArrayDeleteEvent extends ZArrayEvent {
   static METHOD = ++zEventsIota;
   static Type = ZArray;
   apply() {
-    const zid = this.keyPath[this.keyPath.length - 1][0];
+    const zid = this.keyPath[this.keyPath.length - 1];
     this.index = this.impl.binding.i.indexOf(zid);
     this.oldValue = this.impl.binding.e.splice(this.index, 1)[0];
     this.impl.binding.i.splice(this.index, 1);
   }
   getConstructorArgs() {
-    return [this.keyPath];
+    return [this.keyPath, this.keyTypes];
   }
   getAction() {
     return {
@@ -1625,6 +1700,10 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // key path length
     totalSize += this.getKeyPathBuffer().byteLength; // key path data
+    totalSize = align4(totalSize);
+
+    totalSize += Uint32Array.BYTES_PER_ELEMENT; // key types length
+    totalSize += this.getKeyTypesBuffer().byteLength; // key types data
     totalSize = align4(totalSize);
     
     totalSize += Uint32Array.BYTES_PER_ELEMENT; // op index
@@ -1645,6 +1724,13 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     uint8Array.set(kpjb, index);
     index += kpjb.byteLength;
     index = align4(index);
+
+    const ktjb = this.getKeyTypesBuffer();
+    dataView.setUint32(index, ktjb.byteLength, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    uint8Array.set(ktjb, index);
+    index += ktjb.byteLength;
+    index = align4(index);
   }
   static deserializeUpdate(uint8Array) {
     const dataView = _makeDataView(uint8Array);
@@ -1655,14 +1741,21 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    
     const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
     const keyPath = JSON.parse(textDecoder.decode(kpjb)); 
     index += kpjbLength;
     index = align4(index);
+
+    const ktjbLength = dataView.getUint32(index, true);
+    index += Uint32Array.BYTES_PER_ELEMENT;
+    const ktjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, ktjbLength);
+    const keyTypes = JSON.parse(textDecoder.decode(ktjb)); 
+    index += ktjbLength;
+    index = align4(index);
     
     return new this(
-      keyPath
+      keyPath,
+      keyTypes,
     );
   }
 }
