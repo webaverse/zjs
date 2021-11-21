@@ -1194,7 +1194,7 @@ class ZArray extends ZObservable {
     
     arr.forEach(e => _ensureImplBound(e, this));
     
-    const zid = _makeId();
+    const zid = _makeId().toString(16);
     
     const {keyPath, keyTypes} = this.getKeyPathSpec();
     const impl = bindingsMap.get(arr[0]) ?? arr[0];
