@@ -558,12 +558,12 @@ class ZDoc extends ZEventEmitter {
   toJSON() {
     return _jsonify(this.state);
   }
-  pushHistory(event) {
+  pushHistory(resolvePriority, event) {
     const eventTargetBuffer = new Uint8Array(
       this.historyData.buffer,
       this.historyData.byteOffset + this.historyOffsets[this.clock],
     );
-    const eventByteLength = event.serializeHistory(eventTargetBuffer);
+    const eventByteLength = event.serializeHistory(resolvePriority, eventTargetBuffer);
 
     this.clock++;
     this.historyOffsets[this.clock] = eventTargetBuffer.byteOffset + eventByteLength;
@@ -584,8 +584,7 @@ class ZDoc extends ZEventEmitter {
         this.dispatchEvent('update', uint8Array, this.transactionCache.origin, this, null);
       }
       for (const event of this.transactionCache.events) {
-        event.resolvePriority = this.transactionCache.resolvePriority;
-        this.pushHistory(event);
+        this.pushHistory(this.transactionCache.resolvePriority, event);
       }
       /* if (this.transactionCache.events.some(e => e.constructor.name === 'ZEvent')) {
         throw new Error('bad construction');
@@ -1276,7 +1275,6 @@ class ZEvent {
 
     this.impl = null;
     this.keyPathBuffer = null;
-    this.resolvePriority = -1; // populated when we push history
   }
   bindToDoc(doc) {
     if (doc) {
@@ -1356,14 +1354,14 @@ class ZEvent {
   static deserializeUpdate(uint8Array) {
     throw new Error('not implemented');
   }
-  serializeHistory(uint8Array) {
+  serializeHistory(resolvePriority, uint8Array) {
     const dataView = _makeDataView(uint8Array);
     
     let index = 0;
     dataView.setUint32(index, this.constructor.METHOD, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
 
-    dataView.setUint32(index, this.resolvePriority, true);
+    dataView.setUint32(index, resolvePriority, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
 
     const kpjb = this.getKeyPathBuffer();
@@ -1968,8 +1966,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
     }
 
     for (const event of transactionCache.events) {
-      event.resolvePriority = transactionCache.resolvePriority;
-      doc.pushHistory(event);
+      doc.pushHistory(transactionCache.resolvePriority, event);
     }
 
     if (doc.mirror) {
