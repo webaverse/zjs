@@ -19,7 +19,7 @@ let rng = Math.random();
 function setRng(r) {
   rng = r;
 }
-const _makeId = () => Math.round(rng() * 0xFFFFFF);
+const _makeId = () => Math.floor(rng() * 0xFFFFFF);
 const _jsonify = o => {
   const impl = bindingsMap.get(o);
   if (impl?.isZArray) {
