@@ -153,13 +153,11 @@ function zbdecode(uint8Array) {
     /* if (!TypedArrayCons) {
       console.warn('failed to find typed array cons for', addendumType);
     } */
-    const addendum = TypedArrayCons ?
-      new TypedArrayCons(
-        uint8Array.buffer,
-        uint8Array.byteOffset + index,
-        addendumLength / TypedArrayCons.BYTES_PER_ELEMENT
-      )
-    : null;
+    const addendum = new TypedArrayCons(
+      uint8Array.buffer,
+      uint8Array.byteOffset + index,
+      addendumLength / TypedArrayCons.BYTES_PER_ELEMENT
+    );
     index += addendumLength;
     index = align4(index);
     
