@@ -785,8 +785,8 @@ class ZDoc extends ZEventEmitter {
     
     this.clock = clock;
     this.state = state;
-    this.historyData = new Uint8Array(HISTORY_DATA_SIZE);
-    this.historyOffsets = new Uint32Array(HISTORY_OFFSETS_SIZE / Uint32Array.BYTES_PER_ELEMENT);
+    // this.historyData = new Uint8Array(HISTORY_DATA_SIZE);
+    // this.historyOffsets = new Uint32Array(HISTORY_OFFSETS_SIZE / Uint32Array.BYTES_PER_ELEMENT);
   }
   getImplByKeyPathParent(keyPath, keyTypes) {
     let binding = this.state;
