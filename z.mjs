@@ -148,11 +148,11 @@ const _uint8ArrayEquals = (a, b) => {
   }
 };
 const _keyPathEquals = _uint8ArrayEquals;
-const _uint8ArrayPrefixEquals = (a, b, startIndex, endIndex) => {
+const _uint8ArrayPrefixEquals = (a, b) => {
   if (a === b) {
     return true;
-  } else if (a.length >= endIndex && b.length >= endIndex) {
-    for (let i = startIndex; i < endIndex; i++) {
+  } else if (a.length < b.length) {
+    for (let i = 0; i < a.length; i++) {
       if (a[i] !== b[i]) {
         return false;
       }
@@ -162,20 +162,7 @@ const _uint8ArrayPrefixEquals = (a, b, startIndex, endIndex) => {
     return false;
   }
 };
-const _isKeyPathPrefix = (a, b) => {
-  if (a.length < b.length) {
-    const startIndex = 1; // [
-    const endIndex = a.length - 1; // [a]
-    return _uint8ArrayPrefixEquals(
-      a,
-      b,
-      startIndex,
-      endIndex
-    );
-  } else {
-    return false;
-  }
-};
+const _isKeyPathPrefix = _uint8ArrayPrefixEquals;
 /* const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
   const dataView = _getHistoryDataView(historyData, historyOffsets, historyIndex);
 
