@@ -66,7 +66,8 @@ function zbencode(o) {
   if (sbr !== s.length) {
     throw new Error('buffer overflow');
   }
-  const sb = new Uint8Array(textUint8Array.buffer, textUint8Array.byteOffset, sbl);
+  const sb = textUint8Array;
+  // const sb = new Uint8Array(textUint8Array.buffer, textUint8Array.byteOffset, sbl);
   
   let totalSize = 0;
   totalSize += Uint32Array.BYTES_PER_ELEMENT; // length
@@ -88,11 +89,11 @@ function zbencode(o) {
     let index = 0;
     // sb
     {
-      dataView.setUint32(index, sb.byteLength, true);
+      dataView.setUint32(index, sbl, true);
       index += Uint32Array.BYTES_PER_ELEMENT;
       
       uint8Array.set(sb, index);
-      index += sb.byteLength;
+      index += sbl;
       index = align4(index);
     }
     // addendums
