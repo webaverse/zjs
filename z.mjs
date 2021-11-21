@@ -1260,6 +1260,19 @@ class ZArray extends ZObservable {
   }
 }
 
+const uint8ArrayBuffer = new Uint8Array(1024); // 1 kb
+const _parseKeyPathBuffer = uint8Array => {
+  const keyPath = [];
+  let index = 0;
+  while (index < uint8Array.length) {
+    const nextNullIndex = uint8Array.indexOf(0, index);
+    const key = textDecoder.decode(uint8Array.subarray(index, nextNullIndex));
+    keyPath.push(key);
+    index = nextNullIndex + 1;
+  }
+  return keyPath;
+};
+
 let zEventsIota = 0;
 class ZEvent {
   constructor(keyPath, keyTypes) {
@@ -1325,9 +1338,15 @@ class ZEvent {
   }
   getKeyPathBuffer() {
     if (this.keyPathBuffer === null) {
-      this.keyPathBuffer = textEncoder.encode(
-        this.keyPath.join('\n')
-      );
+      let index = 0;
+      for (let i = 0; i < this.keyPath.length; i++) {
+        const key = this.keyPath[i];
+        const {written} = textEncoder.encodeInto(key, uint8ArrayBuffer.subarray(index));
+        index += written;
+
+        uint8ArrayBuffer[index++] = 0; // null separator
+      }
+      this.keyPathBuffer = uint8ArrayBuffer.slice(0, index);
     }
     return this.keyPathBuffer;
   }
@@ -1534,9 +1553,7 @@ class ZMapSetEvent extends ZMapEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const kpjs = textDecoder.decode(kpjb);
-    const keyPath = kpjs.split('\n');
+    const keyPath = _parseKeyPathBuffer(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength));
     index += kpjbLength;
     index = align4(index);
 
@@ -1640,9 +1657,7 @@ class ZMapDeleteEvent extends ZMapEvent {
 
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const kpjs = textDecoder.decode(kpjb);
-    const keyPath = kpjs.split('\n');
+    const keyPath = _parseKeyPathBuffer(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength));
     index += kpjbLength;
     index = align4(index);
 
@@ -1774,9 +1789,7 @@ class ZArrayPushEvent extends ZArrayEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const kpjs = textDecoder.decode(kpjb);
-    const keyPath = kpjs.split('\n');
+    const keyPath = _parseKeyPathBuffer(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength));
     index += kpjbLength;
     index = align4(index);
 
@@ -1875,9 +1888,7 @@ class ZArrayDeleteEvent extends ZArrayEvent {
     
     const kpjbLength = dataView.getUint32(index, true);
     index += Uint32Array.BYTES_PER_ELEMENT;
-    const kpjb = new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength);
-    const kpjs = textDecoder.decode(kpjb);
-    const keyPath = kpjs.split('\n');
+    const keyPath = _parseKeyPathBuffer(new Uint8Array(uint8Array.buffer, uint8Array.byteOffset + index, kpjbLength));
     index += kpjbLength;
     index = align4(index);
 
