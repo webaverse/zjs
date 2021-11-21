@@ -823,8 +823,8 @@ class ZDoc extends ZEventEmitter {
     const newDoc = new ZDoc(
       newState,
       this.clock,
-      this.historyData.slice(),
-      this.historyOffsets.slice(),
+      this.historyData,
+      this.historyOffsets,
     );
 
     // remap old impls onto new bindings
