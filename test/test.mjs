@@ -1395,7 +1395,7 @@ describe('stress test', function() {
   const _stressTest = (numIterations = 1) => {
     const simulation = new Simulation();
     for (let i = 0; i < numIterations; i++) {
-      console.log('iteration', i);
+      // console.log('iteration', i);
       simulation.update();
       // console.log('verify', i, simulation.clients.length, globalThis.maxHistoryLength, globalThis.maxHistoryTailLength);
     }
