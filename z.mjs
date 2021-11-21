@@ -164,10 +164,10 @@ const _isKeyPathPrefix = (a, b) => {
 const _parentWasSet = (event, historyStartIndex, historyEndIndex, history) => {
   for (let i = historyStartIndex; i < historyEndIndex; i++) {
     const e = history.get(i);
-    if (!e) {
+    /* if (!e) {
       console.warn('no event', i, historyStartIndex, historyEndIndex, history);
       throw new Error('no event');
-    }
+    } */
     if ( // if this is a parent overwrite
       _isKeyPathPrefix(e.keyPath, event.keyPath) &&
         (
