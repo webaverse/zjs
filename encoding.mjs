@@ -50,9 +50,9 @@ function zbencode(o) {
       addendums.push(o);
       addendumIndexes.push(recursionIndex);
       const addendumType = ADDENDUM_TYPES.get(o.constructor);
-      if (addendumType === undefined) {
+      /* if (addendumType === undefined) {
         throw new Error(`Unsupported addendum type: ${o.constructor.name}`);
-      }
+      } */
       addendumTypes.push(addendumType)
       return null;
     } else {
