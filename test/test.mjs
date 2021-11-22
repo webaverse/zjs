@@ -1065,11 +1065,30 @@ describe('stress test', function() {
     }
   }
   class AppManager {
-    constructor(appsArray) {
+    constructor(appId, appsArray) {
+      this.appId = appId;
       this.appsArray = appsArray;
     }
     update() {
-      // XXX
+      const r = rng();
+      if (r < 0.25) { // perform app action
+        // find existing app
+        let appMap = (() => {
+          for (let i = 0; i < this.appsArray.length; i++) {
+            const appMap = this.appsArray.get(i, Z.Map);
+            if (appMap.get('appId') === this.appId) {
+              return appMap;
+            }
+          }
+          return null;
+        })();
+        // ensure app is added
+        if (!appMap) {
+          appMap = new Z.Map();
+          appMap.set('appId', this.appId);
+          this.appsArray.push([appMap]);
+        }
+      }
     }
   }
   class PacketQueueEntry {
