@@ -1044,7 +1044,7 @@ class ZMap extends ZObservable {
   }
   set(k, v) {
     _ensureImplBound(v, this);
-    
+
     const {keyPath, keyTypes} = this.getKeyPathSpec();
     const keyType = _getImplKeyType(v) || KEY_TYPES.VALUE;
     keyPath.push(k);
@@ -1203,8 +1203,10 @@ class ZArray extends ZObservable {
     if (arr.length !== 1) {
       throw new Error('only length 1 is supported');
     }
-    
-    arr.forEach(e => _ensureImplBound(e, this));
+
+    for (const e of arr) {
+      _ensureImplBound(e, this);
+    }
     
     const zid = _makeId().toString(16);
     
