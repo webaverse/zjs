@@ -201,20 +201,21 @@ const _parentWasSet = (event, historyStartIndex, historyEndIndex, historyData, h
   for (let i = historyStartIndex; i < historyEndIndex; i++) {
     // const e = _parseHistoryBuffer(historyData, historyOffsets, i);
 
-    const historyKeyPathBuffer = _getHistoryKeyPathBuffer(historyData, historyOffsets, i);
     const historyMethod = _getHistoryMethod(historyData, historyOffsets, i);
-    // console.log('check key path', [textDecoder.decode(historyKeyPathBuffer), textDecoder.decode(event.getKeyPathBuffer())]);
-    if ( // if this is a parent
-      _isKeyPathPrefix(historyKeyPathBuffer, event.getKeyPathBuffer())
-    ) {
-      const historyMethod = _getHistoryMethod(historyData, historyOffsets, i);
-      // console.log('check prefix yes', historyMethod, [textDecoder.decode(historyKeyPathBuffer), textDecoder.decode(event.getKeyPathBuffer())]);
-      if ( // if this is an overwrite type
-        historyMethod === ZMapSetEvent.METHOD ||
-        historyMethod === ZMapDeleteEvent.METHOD ||
-        historyMethod === ZArrayDeleteEvent.METHOD
+    if (historyMethod !== ZNullEvent.METHOD) {
+      const historyKeyPathBuffer = _getHistoryKeyPathBuffer(historyData, historyOffsets, i);
+      // console.log('check key path', [textDecoder.decode(historyKeyPathBuffer), textDecoder.decode(event.getKeyPathBuffer())]);
+      if ( // if this is a parent
+        _isKeyPathPrefix(historyKeyPathBuffer, event.getKeyPathBuffer())
       ) {
-        return true;
+        // console.log('check prefix yes', historyMethod, [textDecoder.decode(historyKeyPathBuffer), textDecoder.decode(event.getKeyPathBuffer())]);
+        if ( // if this is an overwrite type
+          historyMethod === ZMapSetEvent.METHOD ||
+          historyMethod === ZMapDeleteEvent.METHOD ||
+          historyMethod === ZArrayDeleteEvent.METHOD
+        ) {
+          return true;
+        }
       }
     }
   }
