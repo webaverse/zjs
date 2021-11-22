@@ -1042,7 +1042,13 @@ class ZMap extends ZObservable {
     const next = () => {
       if (i < keys.length) {
         const key = keys[i++];
-        const value = this.get(key);
+        const rawValue = this.get(key);
+        const type = bindingsMap.get(rawValue) ?? rawValue;
+        const value = {
+          content: {
+            type,
+          },
+        };
         return {
           done: false,
           value,
@@ -1065,7 +1071,13 @@ class ZMap extends ZObservable {
     const next = () => {
       if (i < keys.length) {
         const key = keys[i++];
-        const value = this.get(key);
+        const rawValue = this.get(key);
+        const type = bindingsMap.get(rawValue) ?? rawValue;
+        const value = {
+          content: {
+            type,
+          },
+        };
         return {
           done: false,
           value: [key, value],
