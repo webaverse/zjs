@@ -1454,7 +1454,9 @@ class ZNullEvent extends ZEvent {
 class ZMapEvent extends ZEvent {
   constructor(keyPath, keyTypes) {
     super(keyPath, keyTypes);
-  
+
+    this.key = null;
+    this.value = null;
     this.keyBuffer = null;
     this.valueBuffer = null;
     
@@ -1477,6 +1479,7 @@ class ZArrayEvent extends ZEvent {
   constructor(keyPath, keyTypes) {
     super(keyPath, keyTypes);
     
+    this.arr = null;
     this.arrBuffer = null;
     
     this.isZArrayEvent = true;
