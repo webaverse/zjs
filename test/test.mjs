@@ -941,6 +941,8 @@ describe('stress test', function() {
     const uint8Array = packet.data;
     return _parsePacketData(uint8Array);
   };
+
+  const appId = _makeId();
   
   class Simulation {
     constructor(server, clients = []) {
