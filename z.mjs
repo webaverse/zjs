@@ -15,7 +15,7 @@ const MESSAGES = (() => {
 
 // XXX can use a power-of-two buffer cache for memory
 
-let rng = Math.random();
+let rng = Math.random;
 function setRng(r) {
   rng = r;
 }
