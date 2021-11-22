@@ -638,7 +638,19 @@ class ZDoc extends ZEventEmitter {
     const _remapState = (oldState, newState) => {
       // remap old impls onto new bindings
       const _lookupKeyPath = (binding, keyPath) => {
-        for (const key of keyPath) {
+        for (let i = 0; i < keyPath.length; i++) {
+          const key = keyPath[i];
+          if (key in binding) {
+            binding = binding[key];
+          } else {
+            return undefined;
+          }
+        }
+        return binding;
+      };
+      const _lookupKeyPathParent = (binding, keyPath) => {
+        for (let i = 0; i < keyPath.length - 1; i++) {
+          const key = keyPath[i];
           if (key in binding) {
             binding = binding[key];
           } else {
@@ -649,7 +661,7 @@ class ZDoc extends ZEventEmitter {
       };
       const _recurse = (newBinding, keyPath) => {
         const oldBinding = _lookupKeyPath(oldState, keyPath);
-        const newParent = keyPath.length > 0 ? _lookupKeyPath(newState, keyPath.slice(0, -1)) : null;
+        const newParent = keyPath.length > 0 ? _lookupKeyPathParent(newState, keyPath) : null;
         let oldImpl;
         if (oldBinding !== undefined) {
           oldImpl = bindingsMap.get(oldBinding);
@@ -880,7 +892,7 @@ class ZObservable {
 
           const impl = bindingsMap.get(binding);
           const keyType = _getImplKeyType(impl) || KEY_TYPES.VALUE;
-          
+
           keyPath.push(key);
           keyTypes.push(keyType);
         } else {
