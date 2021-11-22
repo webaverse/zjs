@@ -981,13 +981,34 @@ class ZObservable {
 }
 
 const _ensureImplBound = (v, parent) => {
-  if (
-    v?.isZMap ||
-    v?.isZArray
-  ) {
+  const isZArray = v?.isZArray;
+  const isZMap = v?.isZMap;
+  if (isZArray || isZMap) {
     bindingsMap.set(v.binding, v);
     bindingParentsMap.set(v.binding, parent.binding);
     v.doc = parent.doc;
+
+    const _recurseChildren = o => {
+      if (o?.isZMap) {
+        o.doc = parent.doc;
+        for (const k in o.binding) {
+          const impl = bindingsMap.get(o.binding[k]);
+          if (impl) {
+            _recurseChildren(impl);
+          }
+        }
+      }
+      if (o?.isZArray) {
+        o.doc = parent.doc;
+        for (const e of o.binding.e) {
+          const impl = bindingsMap.get(e);
+          if (impl) {
+            _recurseChildren(impl);
+          }
+        }
+      }
+    };
+    _recurseChildren(v);
   }
 };
 class ZMap extends ZObservable {
