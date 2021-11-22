@@ -1185,6 +1185,11 @@ class ZArray extends ZObservable {
       this.doc.popTransaction();
     }
   }
+  forEach(callback, thisArg) {
+    for (let i = 0; i < this.binding.e.length; i++) {
+      callback.call(thisArg, this.get(i), i, this);
+    }
+  }
   toJSON() {
     return this.binding.e.map(_jsonify);
   }
