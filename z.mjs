@@ -1044,6 +1044,21 @@ class ZMap extends ZObservable {
       this.triggerObservers(e);
     }
   }
+  get _map() {
+    const result = new Map();
+    for (const k in this.binding) {
+      const rawValue = this.binding[k];
+      const value = bindingsMap.get(rawValue) ?? rawValue;
+      result.set(k, {
+        content: {
+          arr: [
+            value,
+          ],
+        },
+      });
+    }
+    return result;
+  }
   keys() {
     const keys = Object.keys(this.binding);
     let i = 0;
