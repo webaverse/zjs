@@ -473,14 +473,19 @@ class ZDoc extends ZEventEmitter {
     return _jsonify(this.state);
   }
   pushHistory(resolvePriority, event) {
+    let byteOffset = this.historyOffsets[this.clock % this.historyOffsets.length];
+    if (byteOffset >= this.historyData.byteLength / 2) {
+      // console.log('truncate history');
+      byteOffset = 0;
+    }
     const eventTargetBuffer = new Uint8Array(
       this.historyData.buffer,
-      this.historyData.byteOffset + this.historyOffsets[this.clock % this.historyOffsets.length],
+      this.historyData.byteOffset + byteOffset,
     );
     const eventByteLength = event.serializeHistory(resolvePriority, eventTargetBuffer);
 
     this.clock++;
-    this.historyOffsets[this.clock % this.historyOffsets.length] = (eventTargetBuffer.byteOffset + eventByteLength) % this.historyData.byteLength;
+    this.historyOffsets[this.clock % this.historyOffsets.length] = byteOffset + eventByteLength;
 
     // globalThis.maxHistoryLength = Math.max(globalThis.maxHistoryLength, this.clock); // XXX temp
   }
