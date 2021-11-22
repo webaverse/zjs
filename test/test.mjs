@@ -389,14 +389,20 @@ describe('sync', function() {
         map3.observe(observe1);
         
         const observe2 = e => {
+          const rawValue = 7;
+          const value = {
+            content: {
+              type: rawValue,
+            },
+          };
           assert.deepEqual(e.changes, {
-            added: new Set([0]),
+            added: new Set([value]),
             deleted: new Set([]),
             keys: new Map([[
               0,
               {
                 action: 'add',
-                value: 7,
+                value: rawValue,
               },
             ]]),
           });
@@ -1162,8 +1168,12 @@ describe('stress test', function() {
       const playersArray = this.getPlayersArray();
       playersArray.observe(e => {
         // remove old players
-        for (const index of e.changes.deleted) {
-          const oldPlayerMap = e.changes.keys.get(index).value;
+        for (const d of e.changes.deleted.values()) {
+          const {
+            content: {
+              type: oldPlayerMap,
+            },
+          } = d;
           const playerId = oldPlayerMap.get('playerId');
           const oldPlayerIndex = this.remotePlayers.findIndex(player => player.playerId === playerId);
           if (oldPlayerIndex !== -1) {
@@ -1176,8 +1186,23 @@ describe('stress test', function() {
         }
 
         // add new players
-        for (const newKey of e.changes.added) {
-          const newPlayerMap = playersArray.get(newKey, Z.Map);
+        for (const a of e.changes.added.values()) {
+          let {
+            content: {
+              type: newPlayerMap,
+            },
+          } = a;
+          // players in the new state will not be typed if they are not in the old state
+          // therefore, perform the type binding here
+          if (!newPlayerMap.isZMap) {
+            for (let i = 0; i < playersArray.length; i++) {
+              const playerMap = playersArray.get(i, Z.Map);
+              if (playerMap.get('playerId') === newPlayerMap.playerId) {
+                newPlayerMap = playerMap;
+                break;
+              }
+            }
+          }
           const newPlayer = new Player(newPlayerMap);
           this.remotePlayers.push(newPlayer);
         }
