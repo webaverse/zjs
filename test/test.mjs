@@ -73,10 +73,18 @@ describe('ZMap', function() {
       assert.deepEqual(keys, ['key']);
       
       const values = Array.from(map.values());
-      assert.deepEqual(values, ['value']);
+      assert.deepEqual(values, [{
+        content: {
+          type: 'value',
+        },
+      }]);
       
       const entries = Array.from(map.entries());
-      assert.deepEqual(entries, [['key', 'value']]);
+      assert.deepEqual(entries, [['key', {
+        content: {
+          type: 'value',
+        },
+      }]]);
       
       map.set('key2', 'value2');
       assert.equal(map.get('key2'), 'value2');
@@ -245,14 +253,20 @@ describe('observers', function() {
         const array = doc.getArray('array');
         let numObserves = 0;
         const observe = e => {
+          const rawValue = 1;
+          const value = {
+            content: {
+              type: rawValue,
+            }
+          }
           assert.deepEqual(e.changes, {
-            added: new Set([0]),
+            added: new Set([value]),
             deleted: new Set([]),
             keys: new Map([[
               0,
               {
                 action: 'add',
-                value: 1,
+                value: rawValue,
               },
             ]]),
           });
@@ -282,14 +296,20 @@ describe('observers', function() {
         const map = doc.getMap('map');
         let numObserves = 0;
         const observe = e => {
+          const rawValue = 'value';
+          const value = {
+            content: {
+              type: rawValue,
+            },
+          };
           assert.deepEqual(e.changes, {
-            added: new Set(['key']),
+            added: new Set([value]),
             deleted: new Set([]),
             keys: new Map([[
               'key',
               {
                 action: 'update',
-                value: 'value',
+                value: rawValue,
               },
             ]]),
           });
@@ -346,14 +366,20 @@ describe('sync', function() {
       {
         let numObserves = 0;
         const observe1 = e => {
+          const rawValue = 'value';
+          const value = {
+            content: {
+              type: rawValue,
+            },
+          };
           assert.deepEqual(e.changes, {
-            added: new Set(['key']),
+            added: new Set([value]),
             deleted: new Set([]),
             keys: new Map([[
               'key',
               {
                 action: 'add',
-                value: 'value',
+                value: rawValue,
               },
             ]]),
           });

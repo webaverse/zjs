@@ -562,14 +562,14 @@ class ZDoc extends ZEventEmitter {
             const e = {
               changes: {
                 added: new Set([]),
-                deleted: new Set(keys),
+                deleted: new Set(values),
                 keys: new Map(keys.map((key, index) => {
                   const value = values[index];
                   return [
                     key,
                     {
                       action: 'delete',
-                      value,
+                      value: value.content.type,
                     },
                   ];
                 })),
@@ -630,7 +630,7 @@ class ZDoc extends ZEventEmitter {
             const values = Array.from(impl.values());
             const e = {
               changes: {
-                added: new Set(keys),
+                added: new Set(values),
                 deleted: new Set([]),
                 keys: new Map(keys.map((key, index) => {
                   const value = values[index];
@@ -638,7 +638,7 @@ class ZDoc extends ZEventEmitter {
                     key,
                     {
                       action: 'add',
-                      value,
+                      value: value.content.type,
                     },
                   ];
                 })),
