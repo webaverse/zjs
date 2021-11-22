@@ -475,12 +475,12 @@ class ZDoc extends ZEventEmitter {
   pushHistory(resolvePriority, event) {
     const eventTargetBuffer = new Uint8Array(
       this.historyData.buffer,
-      this.historyData.byteOffset + this.historyOffsets[this.clock],
+      this.historyData.byteOffset + this.historyOffsets[this.clock % this.historyOffsets.length],
     );
     const eventByteLength = event.serializeHistory(resolvePriority, eventTargetBuffer);
 
     this.clock++;
-    this.historyOffsets[this.clock] = eventTargetBuffer.byteOffset + eventByteLength;
+    this.historyOffsets[this.clock % this.historyOffsets.length] = (eventTargetBuffer.byteOffset + eventByteLength) % this.historyData.byteLength;
 
     // globalThis.maxHistoryLength = Math.max(globalThis.maxHistoryLength, this.clock); // XXX temp
   }
