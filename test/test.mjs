@@ -245,9 +245,9 @@ describe('observers', function() {
         const array = doc.getArray('array');
         let numObserves = 0;
         const observe = e => {
-          assert.deepEqual(e.added, new Set([0]));
-          assert.deepEqual(e.deleted, new Set([]));
           assert.deepEqual(e.changes, {
+            added: new Set([0]),
+            deleted: new Set([]),
             keys: new Map([[
               0,
               {
@@ -282,9 +282,9 @@ describe('observers', function() {
         const map = doc.getMap('map');
         let numObserves = 0;
         const observe = e => {
-          assert.deepEqual(e.added, new Set(['key']));
-          assert.deepEqual(e.deleted, new Set([]));
           assert.deepEqual(e.changes, {
+            added: new Set(['key']),
+            deleted: new Set([]),
             keys: new Map([[
               'key',
               {
@@ -346,9 +346,9 @@ describe('sync', function() {
       {
         let numObserves = 0;
         const observe1 = e => {
-          assert.deepEqual(e.added, new Set(['key']));
-          assert.deepEqual(e.deleted, new Set([]));
           assert.deepEqual(e.changes, {
+            added: new Set(['key']),
+            deleted: new Set([]),
             keys: new Map([[
               'key',
               {
@@ -363,9 +363,9 @@ describe('sync', function() {
         map3.observe(observe1);
         
         const observe2 = e => {
-          assert.deepEqual(e.added, new Set([0]));
-          assert.deepEqual(e.deleted, new Set([]));
           assert.deepEqual(e.changes, {
+            added: new Set([0]),
+            deleted: new Set([]),
             keys: new Map([[
               0,
               {
@@ -1136,7 +1136,7 @@ describe('stress test', function() {
       const playersArray = this.getPlayersArray();
       playersArray.observe(e => {
         // remove old players
-        for (const index of e.deleted) {
+        for (const index of e.changes.deleted) {
           const oldPlayerMap = e.changes.keys.get(index).value;
           const playerId = oldPlayerMap.get('playerId');
           const oldPlayerIndex = this.remotePlayers.findIndex(player => player.playerId === playerId);
@@ -1150,7 +1150,7 @@ describe('stress test', function() {
         }
 
         // add new players
-        for (const newKey of e.added) {
+        for (const newKey of e.changes.added) {
           const newPlayerMap = playersArray.get(newKey, Z.Map);
           const newPlayer = new Player(newPlayerMap);
           this.remotePlayers.push(newPlayer);
