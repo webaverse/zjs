@@ -1970,7 +1970,9 @@ function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
     transactionCache.bindEventsToDoc();
     for (const event of transactionCache.events) {
       event.apply();
-      transactionCache.pushObserverEvent(event.impl, event.getObserverEvent());
+      if (event.impl?.isZArray || event.impl?.isZMap) {
+        transactionCache.pushObserverEvent(event.impl, event.getObserverEvent());
+      }
     }
 
     for (const event of transactionCache.events) {
