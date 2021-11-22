@@ -1181,8 +1181,6 @@ describe('stress test', function() {
     }
     update() {
       if (this.isBound) {
-        this.appManager.update();
-        
         const _tickPackets = () => {
           let maxNumDelays = 0;
           for (const pipe of this.pipes) {
@@ -1248,22 +1246,21 @@ describe('stress test', function() {
         }
       })();
       result.playerId = this.playerId;
-      result.pipes = this.pipes.map(pipe => {
-        if (!pipe.destination) {
-          throw new Error('no destination');
-        }
-        return pipe.clone();
-      });
+      result.pipes = this.pipes.map(pipe => pipe.clone());
+
       const playersArray = newDoc.getArray('players');
       for (let i = 0; i < playersArray.length; i++) {
         const playerMap = playersArray.get(i, Z.Map);
         const player = new Player(playerMap);
         result.remotePlayers.push(player);
       }
-      // console.log('old doc', this.constructor.name, this.doc.toJSON());
-      result.bind({
-        initialize: false,
-      });
+
+      if (this.isBound) {
+        result.bind({
+          initialize: false,
+        });
+      }
+
       return result;
     }
   }
@@ -1295,11 +1292,14 @@ describe('stress test', function() {
       super.bind(opts);
 
       const appsArray = this.doc.getArray('world.apps');
-      this.appManager = new AppManager(appsArray);
+      this.appManager = new AppManager(appId, appsArray);
     }
     emitInitialPacket(pipe) {
       const uint8Array = Z.encodeStateAsUpdate(this.doc);
       pipe.pushPacket(uint8Array);
+    }
+    update() {
+      super.update();
     }
     clearPlayer(playerId) {
       const playerIndex = this.remotePlayers.findIndex(player => player.playerId === playerId);
@@ -1348,13 +1348,16 @@ describe('stress test', function() {
         this.doc.transact(() => {
           const localPlayerMap = new Z.Map();
           localPlayerMap.set('playerId', this.playerId);
-          const position = Float32Array.from([rngndc(), rngndc(), rngndc()])
+          const position = Float32Array.from([rngndc(), rngndc(), rngndc()]);
           localPlayerMap.set('position', position);
           const appsArray = new Z.Array();
+          
           localPlayerMap.set('apps', appsArray);
+
           playersArray.push([localPlayerMap]);
+          
           this.localPlayer = new Player(localPlayerMap);
-          this.appManager = new AppManager(appsArray);
+          this.appManager = new AppManager(appId, appsArray);
         });
       } else {
         let localPlayerMap = (() => {
@@ -1366,38 +1369,42 @@ describe('stress test', function() {
           }
           return null;
         })();
-        if (!localPlayerMap) {
-          localPlayerMap = new Z.Map();
-          // localPlayerMap.set('playerId', this.playerId);
-          // console.warn('binding possibilities: ', this.playerId, this.doc.toJSON());
-          // throw new Error('nothing to bind to');
+        if (localPlayerMap) {
+          const appsArray = localPlayerMap.get('apps', Z.Array);
+          this.localPlayer = new Player(localPlayerMap);
+          this.appManager = new AppManager(appId, appsArray);
+        } else {
+          throw new Error('could not bind world client');
         }
-        this.localPlayer = new Player(localPlayerMap);
-        this.appManager = new AppManager(localPlayerMap.get('apps', Z.Array));
       }
 
       const worldAppsArray = this.doc.getArray('world.apps');
-      this.worldAppManager = new AppManager(worldAppsArray);
+      this.worldAppManager = new AppManager(appId, worldAppsArray);
     }
     update() {
-      const events = super.update();
-
       const r = rng();
       if (this.isBound) {
         if (r < 1/3) {
           const newPosition = Float32Array.from([rngndc(), rngndc(), rngndc()]);
           this.localPlayer.playerMap.set('position', newPosition);
         }
+
+        if (this.appManager.appsArray.doc !== this.doc) {
+          console.warn('app manager doc mismatch 3');
+          process.exit(1);
+          throw new Error('app manager doc mismatch 3');
+        }
+        this.appManager.update();
       }
 
-      return events;
+      super.update();
     }
   }
   class Player {
     constructor(playerMap) {
       this.playerMap = playerMap;
       const appsArray = playerMap.get('apps', Z.Array);
-      this.appManager = new AppManager(appsArray);
+      this.appManager = new AppManager(appId, appsArray);
     }
     get playerId() {
       return this.playerMap.get('playerId');
@@ -1420,6 +1427,7 @@ describe('stress test', function() {
       // console.log('iteration', i);
       simulation.update();
       // console.log('verify', i, simulation.clients.length, globalThis.maxHistoryLength, globalThis.maxHistoryTailLength);
+      // _check(simulation);
     }
     _check(simulation);
   };
