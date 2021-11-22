@@ -681,7 +681,7 @@ class ZDoc extends ZEventEmitter {
         }
         return binding;
       };
-      const _recurse = (newBinding, keyPath) => {
+      const _recurseRemapState = (newBinding, keyPath) => {
         const oldBinding = _lookupKeyPath(oldState, keyPath);
         const newParent = keyPath.length > 0 ? _lookupKeyPathParent(newState, keyPath) : null;
         let oldImpl;
@@ -698,21 +698,21 @@ class ZDoc extends ZEventEmitter {
           for (let i = 0; i < newBinding.e.length; i++) {
             const zid = newBinding.i[i];
             const index = oldBinding.i.indexOf(zid);
-            _recurse(newBinding.e[i], keyPath.concat(['e', index]));
+            _recurseRemapState(newBinding.e[i], keyPath.concat(['e', index]));
           }
         } else if (Array.isArray(newBinding)) {
           for (let i = 0; i < newBinding.length; i++) {
-            _recurse(newBinding[i], keyPath.concat([i]));
+            _recurseRemapState(newBinding[i], keyPath.concat([i]));
           }
         } else if (newBinding !== null && typeof newBinding === 'object') {
           for (const k in newBinding) {
-            _recurse(newBinding[k], keyPath.concat([k]));
+            _recurseRemapState(newBinding[k], keyPath.concat([k]));
           }
         } else {
           // nothing
         }
       };
-      _recurse(newState, []);
+      _recurseRemapState(newState, []);
     };
     
     _emitDeleteEvents(this.state);
