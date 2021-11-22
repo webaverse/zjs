@@ -598,22 +598,26 @@ class ZDoc extends ZEventEmitter {
           }
         } else if (impl?.isZArray) {
           if (impl.length > 0) {
-            const indexes = [];
-            for (let i = 0; i < impl.binding.e.length; i++) {
-              indexes.push(i);
-            }
+            const rawValues = impl.binding.e.map(value => bindingsMap.get(value) ?? value);
+            const values = rawValues.map(rawValue => {
+              return {
+                content: {
+                  type: rawValue,
+                },
+              };
+            });
 
             const e = {
               changes: {
-                added: new Set(indexes),
+                added: new Set(values),
                 deleted: new Set([]),
-                keys: new Map(indexes.map(index => {
-                  const value = impl.binding.e[index];
+                keys: new Map(values.map((value, index) => {
+                  const rawValue = rawValues[index];
                   return [
                     index,
                     {
                       action: 'add',
-                      value,
+                      value: rawValue,
                     },
                   ];
                 })),
@@ -1967,7 +1971,7 @@ function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
     } else {
       throw new Error('transaction skipped clock ticks; desynced');
     }
-    
+
     transactionCache.bindEventsToDoc();
     for (const event of transactionCache.events) {
       event.apply();
