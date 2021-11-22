@@ -1140,7 +1140,9 @@ class ZArray extends ZObservable {
     return this.binding.e.length;
   }
   set length(length) {
-    this.binding.e.length = length;
+    throw new Error('ZArray.length is read-only');
+    /* this.binding.e.length = length;
+    this.binding.i.length = length; */
   }
   get(index, Type) {
     if (Type) {
