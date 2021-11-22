@@ -1161,7 +1161,8 @@ class ZArray extends ZObservable {
       }
       return impl;
     } else {
-      return this.binding.e[index];
+      const value = this.binding.e[index];
+      return bindingsMap.get(value) ?? value;
     }
   }
   getId(zid, Type) {
