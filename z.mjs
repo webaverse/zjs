@@ -928,20 +928,28 @@ class ZObservable {
         if (parentImpl.isZDoc) {
           const impl = bindingsMap.get(binding);
           const keyType = _getImplKeyType(impl);
-          if (keyType) {
-            const keys = Object.keys(parentBinding);
+          // if (keyType) {
+            let key;
+            for (const k in parentBinding) {
+              if (parentBinding[k] === binding) {
+                key = k;
+                break;
+              }
+            }
+
+            /* const keys = Object.keys(parentBinding);
             const matchingKeys = keys.filter(k => parentBinding[k] === binding);
-            if (matchingKeys.length === 1) {
-              const key = matchingKeys[0];
+            if (matchingKeys.length === 1) { */
+              // const key = matchingKeys[0];
               keyPath.push(key);
               keyTypes.push(keyType);
-            } else {
+            /* } else {
               console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
               throw new Error('zarray did not have unique key (had ' + matchingKeys.length + ')');
-            }
-          } else {
+            } */
+          /* } else {
             console.warn('unknown key type for doc set', impl, parentImpl);
-          }
+          } */
         } else if (parentImpl.isZArray) {
           const index = parentImpl.binding.e.indexOf(binding);
           const zid = parentImpl.binding.i[index];
@@ -950,18 +958,23 @@ class ZObservable {
           keyPath.push(zid);
           keyTypes.push(type);
         } else if (parentImpl.isZMap) {
-          const keys = Object.keys(parentBinding);
-          const matchingKeys = keys.filter(k => parentBinding[k] === binding);
-          if (matchingKeys.length === 1) {
-            const key = matchingKeys[0];
+          let key;
+          for (const k in parentBinding) {
+            if (parentBinding[k] === binding) {
+              key = k;
+              break;
+            }
+          }
+
+          // if (key) {
             const impl = bindingsMap.get(binding);
             const type = _getImplKeyType(impl) || KEY_TYPES.VALUE;
             keyPath.push(key);
             keyTypes.push(type);
-          } else {
+          /* } else {
             console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
             throw new Error('zmap did not have unique key (had ' + matchingKeys.length + ')');
-          }
+          } */
         } else {
           console.log('failed to find binding getting key path', binding);
         }
