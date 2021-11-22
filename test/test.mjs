@@ -1126,6 +1126,7 @@ describe('stress test', function() {
       this.doc = doc;
       this.appManager = null;
       this.remotePlayers = [];
+      this.isBound = false;
 
       // packet buffer
       this.pipes = [];
