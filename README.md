@@ -1,11 +1,12 @@
-# z
+# zjs
 
 CRDT like [yjs](https://github.com/yjs/yjs), but faster for game engine usage.
 
 ## Benefits
 
-- Smaller
-- Supports binary
+- Small memory footprint
+- Fast conflict resolution
+- Supports binary data (typed arrays)
 
 ## Restrictions
 
