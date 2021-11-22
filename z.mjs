@@ -1210,9 +1210,11 @@ class ZArray extends ZObservable {
     return {
       next: () => {
         if (i < this.length) {
+          const rawValue = this.get(i++);
+          const value = bindingsMap.get(rawValue) ?? rawValue;
           return {
             done: false,
-            value: this.get(i++),
+            value,
           };
         } else {
           return {
