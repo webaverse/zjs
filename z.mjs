@@ -1979,7 +1979,7 @@ const Z = {
   zbdecode,
 };
 export default Z;
-globalThis.Z = Z; // XXX testing only
+/* globalThis.Z = Z; // XXX testing only
 
 import * as Y from 'yjs'; // XXX testing only
-globalThis.Y = Y;
+globalThis.Y = Y; */
