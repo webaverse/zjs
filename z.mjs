@@ -413,13 +413,13 @@ class TransactionCache {
 }
 
 const HISTORY_DATA_SIZE = 1024 * 1024; // 1 MB
-const HISTORY_OFFSETS_LENGTH = HISTORY_DATA_SIZE / Uint32Array.BYTES_PER_ELEMENT;
+const HISTORY_LENGTH = 1024;
 class ZDoc extends ZEventEmitter {
   constructor(
     state = {},
     clock = 0,
     historyData = new Uint8Array(HISTORY_DATA_SIZE),
-    historyOffsets = new Uint32Array(HISTORY_OFFSETS_LENGTH),
+    historyOffsets = new Uint32Array(HISTORY_LENGTH),
  ) {
     super();
 
@@ -716,7 +716,7 @@ class ZDoc extends ZEventEmitter {
     this.clock = clock;
     this.state = state;
     // this.historyData = new Uint8Array(HISTORY_DATA_SIZE);
-    // this.historyOffsets = new Uint32Array(HISTORY_OFFSETS_LENGTH);
+    // this.historyOffsets = new Uint32Array(HISTORY_LENGTH);
 
     for (const [impl, e] of observerEvents) {
       impl.triggerObservers(e);
