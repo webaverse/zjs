@@ -1468,7 +1468,7 @@ class ZMapEvent extends ZEvent {
   }
   getValueBuffer() {
     if (this.valueBuffer === null) {
-      this.valueBuffer = zbencode(_getBindingForValue(this.value));
+      this.valueBuffer = zbencode(this.value);
     }
     return this.valueBuffer;
   }
@@ -1483,7 +1483,7 @@ class ZArrayEvent extends ZEvent {
   }
   getArrBuffer() {
     if (this.arrBuffer === null) {
-      this.arrBuffer = zbencode(_getBindingForArray(this.arr));
+      this.arrBuffer = zbencode(this.arr);
     }
     return this.arrBuffer;
   }
