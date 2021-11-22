@@ -1267,9 +1267,17 @@ class ZEvent {
   getEvent() {
     const actionSpec = this.getAction();
     if (actionSpec) {
-      const added = new Set(/add|update/.test(actionSpec.action) ? [actionSpec.key] : []);
-      const deleted = new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []);
       const value = bindingsMap.get(actionSpec.value) ?? actionSpec.value;
+      const added = new Set(/add|update/.test(actionSpec.action) ? [{
+        content: {
+          type: value,
+        },
+      }] : []);
+      const deleted = new Set(actionSpec.action === 'delete' ? [{
+        content: {
+          type: value,
+        },
+      }] : []);
       return {
         changes: {
           added,
