@@ -482,16 +482,12 @@ class ZDoc extends ZEventEmitter {
   popTransaction() {
     if (--this.transactionDepth === 0) {
       const uint8Array = this.transactionCache.serializeUpdate();
-      // console.log('transaction cache clock', this.clock, this.transactionCache.startClock, this.transactionCache.events.length, this.transactionCache.doc.clock);
       if (uint8Array) {
         this.dispatchEvent('update', uint8Array, this.transactionCache.origin, this, null);
       }
       for (const event of this.transactionCache.events) {
         this.pushHistory(this.transactionCache.resolvePriority, event);
       }
-      /* if (this.transactionCache.events.some(e => e.constructor.name === 'ZEvent')) {
-        throw new Error('bad construction');
-      } */
       this.transactionCache = null;
     }
   }
