@@ -880,43 +880,45 @@ class ZObservable {
 
       if (parentBinding) {
         const parentImpl = bindingsMap.get(parentBinding);
-        if (parentImpl.isZDoc) {
-          let key;
-          for (const k in parentBinding) {
-            if (parentBinding[k] === binding) {
-              key = k;
-              break;
+        if (parentImpl) {
+          if (parentImpl.isZDoc) {
+            let key;
+            for (const k in parentBinding) {
+              if (parentBinding[k] === binding) {
+                key = k;
+                break;
+              }
             }
-          }
 
-          const impl = bindingsMap.get(binding);
-          const keyType = _getImplKeyType(impl);
+            const impl = bindingsMap.get(binding);
+            const keyType = _getImplKeyType(impl);
 
-          keyPath.push(key);
-          keyTypes.push(keyType);
-        } else if (parentImpl.isZArray) {
-          const index = parentImpl.binding.e.indexOf(binding);
-          const zid = parentImpl.binding.i[index];
-          const impl = bindingsMap.get(binding);
-          const type = (_getImplKeyType(impl) || KEY_TYPES.VALUE) | KEY_TYPES.ELEMENT;
-          keyPath.push(zid);
-          keyTypes.push(type);
-        } else if (parentImpl.isZMap) {
-          let key;
-          for (const k in parentBinding) {
-            if (parentBinding[k] === binding) {
-              key = k;
-              break;
+            keyPath.push(key);
+            keyTypes.push(keyType);
+          } else if (parentImpl.isZArray) {
+            const index = parentImpl.binding.e.indexOf(binding);
+            const zid = parentImpl.binding.i[index];
+            const impl = bindingsMap.get(binding);
+            const type = (_getImplKeyType(impl) || KEY_TYPES.VALUE) | KEY_TYPES.ELEMENT;
+            keyPath.push(zid);
+            keyTypes.push(type);
+          } else if (parentImpl.isZMap) {
+            let key;
+            for (const k in parentBinding) {
+              if (parentBinding[k] === binding) {
+                key = k;
+                break;
+              }
             }
+
+            const impl = bindingsMap.get(binding);
+            const keyType = _getImplKeyType(impl) || KEY_TYPES.VALUE;
+
+            keyPath.push(key);
+            keyTypes.push(keyType);
+          } else {
+            console.log('failed to find binding getting key path', binding);
           }
-
-          const impl = bindingsMap.get(binding);
-          const keyType = _getImplKeyType(impl) || KEY_TYPES.VALUE;
-
-          keyPath.push(key);
-          keyTypes.push(keyType);
-        } else {
-          console.log('failed to find binding getting key path', binding);
         }
         binding = parentBinding;
       } else {
