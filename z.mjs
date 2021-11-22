@@ -849,30 +849,19 @@ class ZObservable {
       if (parentBinding) {
         const parentImpl = bindingsMap.get(parentBinding);
         if (parentImpl.isZDoc) {
+          let key;
+          for (const k in parentBinding) {
+            if (parentBinding[k] === binding) {
+              key = k;
+              break;
+            }
+          }
+
           const impl = bindingsMap.get(binding);
           const keyType = _getImplKeyType(impl);
-          // if (keyType) {
-            let key;
-            for (const k in parentBinding) {
-              if (parentBinding[k] === binding) {
-                key = k;
-                break;
-              }
-            }
 
-            /* const keys = Object.keys(parentBinding);
-            const matchingKeys = keys.filter(k => parentBinding[k] === binding);
-            if (matchingKeys.length === 1) { */
-              // const key = matchingKeys[0];
-              keyPath.push(key);
-              keyTypes.push(keyType);
-            /* } else {
-              console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
-              throw new Error('zarray did not have unique key (had ' + matchingKeys.length + ')');
-            } */
-          /* } else {
-            console.warn('unknown key type for doc set', impl, parentImpl);
-          } */
+          keyPath.push(key);
+          keyTypes.push(keyType);
         } else if (parentImpl.isZArray) {
           const index = parentImpl.binding.e.indexOf(binding);
           const zid = parentImpl.binding.i[index];
@@ -889,15 +878,11 @@ class ZObservable {
             }
           }
 
-          // if (key) {
-            const impl = bindingsMap.get(binding);
-            const type = _getImplKeyType(impl) || KEY_TYPES.VALUE;
-            keyPath.push(key);
-            keyTypes.push(type);
-          /* } else {
-            console.warn('unexpected number of matching keys; duplicate or corruption', matchingKeys, parentBinding, binding);
-            throw new Error('zmap did not have unique key (had ' + matchingKeys.length + ')');
-          } */
+          const impl = bindingsMap.get(binding);
+          const keyType = _getImplKeyType(impl) || KEY_TYPES.VALUE;
+          
+          keyPath.push(key);
+          keyTypes.push(keyType);
         } else {
           console.log('failed to find binding getting key path', binding);
         }
@@ -1882,10 +1867,6 @@ function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
     let transactionCache = TransactionCache.deserializeUpdate(uint8Array);
     transactionCache.doc = doc;
     transactionCache.origin = transactionOrigin;
-
-    /* console.log('packet 0', playerId, transactionOrigin, doc.clock, transactionCache.startClock, transactionCache.events.length, util.inspect(transactionCache.events, {
-      depth: 5,
-    })); */
 
     // rebase on top of local history as needed
     if (transactionCache.startClock === doc.clock) {
