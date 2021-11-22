@@ -1044,7 +1044,7 @@ class ZMap extends ZObservable {
       this.triggerObservers(e);
     }
   }
-  get _map() {
+  get _map() { // match yjs api
     const result = new Map();
     for (const k in this.binding) {
       const rawValue = this.binding[k];
