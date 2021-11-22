@@ -1,7 +1,6 @@
 import assert from 'assert';
 import Z from '../z.mjs';
 import alea from 'alea';
-import util from 'util';
 
 const rng = new alea('lol');
 Z.setRng(rng);
