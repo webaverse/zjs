@@ -508,9 +508,9 @@ class ZDoc extends ZEventEmitter {
             }
 
             const e = {
-              added: new Set([]),
-              deleted: new Set(indexes),
               changes: {
+                added: new Set([]),
+                deleted: new Set(indexes),
                 keys: new Map(indexes.map(index => {
                   let value = impl.binding.e[index];
                   value = bindingsMap.get(value) ?? value;
@@ -535,9 +535,9 @@ class ZDoc extends ZEventEmitter {
           if (keys.length > 0) {
             const values = Array.from(impl.values());
             const e = {
-              added: new Set([]),
-              deleted: new Set(keys),
               changes: {
+                added: new Set([]),
+                deleted: new Set(keys),
                 keys: new Map(keys.map((key, index) => {
                   const value = values[index];
                   return [
@@ -578,9 +578,9 @@ class ZDoc extends ZEventEmitter {
             }
 
             const e = {
-              added: new Set(indexes),
-              deleted: new Set([]),
               changes: {
+                added: new Set(indexes),
+                deleted: new Set([]),
                 keys: new Map(indexes.map(index => {
                   const value = impl.binding.e[index];
                   return [
@@ -604,9 +604,9 @@ class ZDoc extends ZEventEmitter {
           if (keys.length > 0) {
             const values = Array.from(impl.values());
             const e = {
-              added: new Set(keys),
-              deleted: new Set([]),
               changes: {
+                added: new Set(keys),
+                deleted: new Set([]),
                 keys: new Map(keys.map((key, index) => {
                   const value = values[index];
                   return [
@@ -1252,9 +1252,9 @@ class ZEvent {
       const deleted = new Set(actionSpec.action === 'delete' ? [actionSpec.key] : []);
       const value = bindingsMap.get(actionSpec.value) ?? actionSpec.value;
       return {
-        added,
-        deleted,
         changes: {
+          added,
+          deleted,
           keys: new Map([[
             actionSpec.key,
             {
