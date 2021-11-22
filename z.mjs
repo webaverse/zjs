@@ -56,15 +56,6 @@ const _getBindingForValue = e => {
 };
 const _getBindingForArray = arr => arr.map(_getBindingForValue);
 
-/* const _parseKey = s => {
-  const match = s.match(/^([\s\S]*?)(?::[\s\S])?$/);
-  const key = match[1] ?? '';
-  const type = match[2] ?? '';
-  return {
-    key,
-    type,
-  };
-}; */
 const _makeDataView = uint8Array => new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
 const _parseBoundEvent = encodedEventData => {
   const dataView = _makeDataView(encodedEventData);
@@ -163,74 +154,6 @@ const _uint8ArrayPrefixEquals = (a, b) => {
   }
 };
 const _isKeyPathPrefix = _uint8ArrayPrefixEquals;
-/* const _parseHistoryBuffer = (historyData, historyOffsets, historyIndex) => {
-  const dataView = _getHistoryDataView(historyData, historyOffsets, historyIndex);
-
-  let index = 0;
-  const eventType = dataView.getUint32(index, true);
-  index += Uint32Array.BYTES_PER_ELEMENT;
-
-  const Cons = ZEVENT_CONSTRUCTORS[eventType];
-
-  const resolvePriority = dataView.getUint32(index, true);
-  index += Uint32Array.BYTES_PER_ELEMENT;
-
-  const kpjbLength = dataView.getUint32(index, true);
-  index += Uint32Array.BYTES_PER_ELEMENT;
-
-  try {
-    const kpjb = new Uint8Array(dataView.buffer, dataView.byteOffset + index, kpjbLength);
-    const s = textDecoder.decode(kpjb);
-    const keyPath = JSON.parse(s); 
-    index += kpjbLength;
-    index = align4(index);
-
-    switch (Cons) {
-      case ZNullEvent: {
-        return {
-          keyPath,
-          resolvePriority,
-          isZNullEvent: true,
-        };
-      }
-      case ZMapSetEvent: {
-        return {
-          keyPath,
-          resolvePriority,
-          isZMapSetEvent: true,
-        };
-      }
-      case ZMapDeleteEvent: {
-        return {
-          keyPath,
-          resolvePriority,
-          isZMapDeleteEvent: true,
-        };
-      }
-      case ZArrayPushEvent: {
-        return {
-          keyPath,
-          resolvePriority,
-          isZArrayPushEvent: true,
-        };
-      }
-      case ZArrayDeleteEvent: {
-        return {
-          keyPath,
-          resolvePriority,
-          isZArrayDeleteEvent: true,
-        };
-      }
-      default: {
-        throw new Error('unknown history buffer event type');
-      }
-    }
-  } catch (e) {
-    console.warn('could not parse history buffer', historyIndex, eventType, Cons, resolvePriority, kpjbLength);
-
-    throw e;
-  }
-}; */
 const _getHistoryDataView = (historyData, historyOffsets, historyIndex) => {
   return new DataView(
     historyData.buffer,
