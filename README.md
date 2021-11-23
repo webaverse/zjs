@@ -1,12 +1,12 @@
 # zjs
 
-CRDT like [yjs](https://github.com/yjs/yjs), but faster for game engine usage.
+API-compatible [yjs](https://github.com/yjs/yjs) CRDT, but faster for game engine usage.
 
 ## Benefits
 
-- Small memory footprint
+- Small memory footprint (O(data) objects garbage)
 - Fast conflict resolution based on single clock, resolution priority, and binary history buffer
-- Supports binary data (typed arrays)
+- Supports all JSON and binary data (typed arrays)
 
 ## Restrictions
 
