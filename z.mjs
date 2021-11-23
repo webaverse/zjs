@@ -273,12 +273,11 @@ class TransactionCache {
     this.events.push(event);
   }
   pushObserverEvent(impl, e) {
-    this.observerEvents.push([impl, e]);
+    this.observerEvents.push(impl.triggerObservers.bind(impl, e));
   }
   triggerObserverEvents() {
     for (let i = 0; i < this.observerEvents.length; i++) {
-      const [impl, e] = this.observerEvents[i];
-      impl.triggerObservers(e);
+      this.observerEvents[i]();
     }
   }
   bindEventsToDoc() {
