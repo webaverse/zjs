@@ -1191,7 +1191,7 @@ class ZArray extends ZObservable {
       if (!impl) {
         impl = new Type(binding, this.doc);
         bindingsMap.set(binding, impl);
-        bindingParentsMap.set(binding, this.state);
+        bindingParentsMap.set(binding, this.binding);
       }
       return impl;
     } else {
