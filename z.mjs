@@ -631,7 +631,15 @@ class ZDoc extends ZEventEmitter {
         } else if (impl?.isZMap) {
           const keys = Array.from(impl.keys());
           if (keys.length > 0) {
-            const values = Array.from(impl.values());
+            const rawValues = Array.from(impl.values())//.map(value => bindingsMap.get(value) ?? value);
+            const values = rawValues/*.map(rawValue => {
+              return {
+                content: {
+                  type: rawValue,
+                },
+              };
+            }); */
+
             const e = {
               changes: {
                 added: new Set(values),
