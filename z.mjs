@@ -280,11 +280,6 @@ class TransactionCache {
       this.observerEvents[i]();
     }
   }
-  bindEventsToDoc() {
-    for (const event of this.events) {
-      event.bindToDoc(this.doc);
-    }
-  }
   rebase() {
     const historyTailLength = this.doc.clock - this.startClock;
     // globalThis.maxHistoryTailLength = Math.max(globalThis.maxHistoryTailLength, historyTailLength);
@@ -1979,8 +1974,8 @@ function applyUpdate(doc, uint8Array, transactionOrigin, playerId) {
       throw new Error('transaction skipped clock ticks; desynced');
     }
 
-    transactionCache.bindEventsToDoc();
     for (const event of transactionCache.events) {
+      event.bindToDoc(transactionCache.doc);
       event.apply();
       if (event.impl?.isZArray || event.impl?.isZMap) {
         transactionCache.pushObserverEvent(event.impl, event.getObserverEvent());
