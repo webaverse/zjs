@@ -996,7 +996,7 @@ class ZMap extends ZObservable {
       }
       let impl = bindingsMap.get(binding);
       if (!impl) {
-        impl = new Type(binding, this);
+        impl = new Type(binding, this.doc);
         bindingsMap.set(binding, impl);
         bindingParentsMap.set(binding, this.binding);
       }
@@ -1181,7 +1181,7 @@ class ZArray extends ZObservable {
       }
       let impl = bindingsMap.get(binding);
       if (!impl) {
-        impl = new Type(binding, this);
+        impl = new Type(binding, this.doc);
         bindingsMap.set(binding, impl);
         bindingParentsMap.set(binding, this.state);
       }
