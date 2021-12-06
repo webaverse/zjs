@@ -758,10 +758,10 @@ class ZDoc extends ZEventEmitter {
         }
       })();
 ``
-      if (child === 'lol') {
+      /* if (child === 'lol') {
         console.warn(`Key path does not exist`, JSON.stringify([keyType, KEY_TYPES.ARRAY]), keyPath, binding.array);
         throw new Error(`Key path ${keyPath} ${keyType} ${binding.array} does not exist`);
-      }
+      } */
 
       if (child) {
         impl = child;
