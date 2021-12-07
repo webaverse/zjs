@@ -979,7 +979,7 @@ const _ensureImplBound = (v, parent) => {
   }
 };
 class ZMap extends ZObservable {
-  constructor(binding = ZMap.nativeConstructor(), doc = new ZDoc()) {
+  constructor(binding = ZMap.nativeConstructor(), doc = null) {
     super(binding, doc);
     
     this.isZMap = true;
@@ -1156,7 +1156,7 @@ class ZMap extends ZObservable {
 }
 
 class ZArray extends ZObservable {
-  constructor(binding = ZArray.nativeConstructor(), doc = new ZDoc()) {
+  constructor(binding = ZArray.nativeConstructor(), doc = null) {
     super(binding, doc);
     
     this.isZArray = true;
