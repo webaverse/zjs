@@ -27,7 +27,7 @@ const ADDENDUM_CONSTRUCTORS = [
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
-const textUint8Array = new Uint8Array(1024 * 1024); // 1 MB
+let textUint8Array = new Uint8Array(1024 * 1024); // 1 MB
 
 const encodableConstructors = [
   Uint8Array,
@@ -71,11 +71,17 @@ function zbencode(o) {
       const s = JSON.stringify(o, function(k, v) {
         return _recurseExtractAddendums(v);
       });
-      const {read, written} = textEncoder.encodeInto(s, textUint8Array);
-      if (read !== s.length) {
-        throw new Error('buffer overflow');
+      let result;
+      for (;;) {
+        result = textEncoder.encodeInto(s, textUint8Array);
+        if (result.read === s.length) {
+          break;
+        } else {
+          textUint8Array = new Uint8Array(textUint8Array.length * 2);
+          console.warn('zjs: resizing buffer');
+        }
       }
-      return textUint8Array.subarray(0, written);
+      return textUint8Array.subarray(0, result.written);
     }
   };
   const sb = _getSb();
