@@ -281,10 +281,10 @@ class TransactionCache {
     }
   }
   rebase() {
-    const historyTailLength = this.doc.clock - this.startClock;
     // globalThis.maxHistoryTailLength = Math.max(globalThis.maxHistoryTailLength, historyTailLength);
     const historyStartIndex = this.startClock;
     const historyEndIndex = this.doc.clock;
+    this.startClock = this.doc.clock;
     const {historyData, historyOffsets}  = this.doc;
     
     for (let i = 0; i < this.events.length; i++) {
@@ -331,7 +331,6 @@ class TransactionCache {
         console.warn('unknown event type', event);
       }
     }
-    this.startClock += historyTailLength;
   }
   serializeUpdate() {    
     let totalSize = 0;
