@@ -27,7 +27,7 @@ const ADDENDUM_CONSTRUCTORS = [
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
-let textUint8Array = new Uint8Array(1024 * 1024); // 1 MB
+let textUint8Array = new Uint8Array(4 * 1024 * 1024); // 4 MB
 
 const encodableConstructors = [
   Uint8Array,
