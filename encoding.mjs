@@ -1,5 +1,10 @@
 import {align4} from './util.mjs';
 
+const HTMLImageElement = typeof window !== 'undefined' ? window.HTMLImageElement : function() {};
+const HTMLCanvasElement = typeof window !== 'undefined' ? window.HTMLCanvasElement : function() {};
+const ImageData = typeof window !== 'undefined' ? window.ImageData : function() {};
+const ImageBitmap = typeof window !== 'undefined' ? window.ImageBitmap : function() {};
+
 const ADDENDUM_TYPES = (() => {
   let iota = 0;
   const result = new Map();
@@ -12,6 +17,13 @@ const ADDENDUM_TYPES = (() => {
   result.set(Float32Array, ++iota);
   result.set(Float64Array, ++iota);
   result.set(ArrayBuffer, ++iota);
+
+  const imageIota = ++iota;
+  result.set(HTMLImageElement, imageIota);
+  result.set(HTMLCanvasElement, imageIota);
+  result.set(ImageData, imageIota);
+  result.set(ImageBitmap, imageIota);
+
   return result;
 })();
 const ADDENDUM_CONSTRUCTORS = (() => {
@@ -29,17 +41,56 @@ const ADDENDUM_CONSTRUCTORS = (() => {
     _construct(Float32Array),
     _construct(Float64Array),
     (buffer, offset, byteLength) => buffer.slice(offset, offset + byteLength), // ArrayBuffer
+    (buffer, offset, byteLength) => { // ImageData
+      const dataView = new DataView(buffer, offset, byteLength);
+      const width = dataView.getUint32(0, true);
+      const height = dataView.getUint32(4, true);
+      const data = new Uint8ClampedArray(buffer, offset + 8, byteLength - 8);
+      const imageData = new ImageData(data, width, height);
+      return imageData;
+    },
   ];
 })();
 const ADDENDUM_SERIALIZERS = (() => {
   const _serializedTypedArray = (typedArray, uint8Array, index) => {
     uint8Array.set(new Uint8Array(typedArray.buffer, typedArray.byteOffset, typedArray.byteLength), index);
   };
+  _serializedTypedArray.normalize = a => a;
   _serializedTypedArray.getSize = typedArray => typedArray.byteLength;
+  
   const _serializeArrayBuffer = (arrayBuffer, uint8Array, index) => {
     uint8Array.set(new Uint8Array(arrayBuffer), index);
   };
+  _serializeArrayBuffer.normalize = a => a;
   _serializeArrayBuffer.getSize = arrayBuffer => arrayBuffer.byteLength;
+
+  const _serializeImage = (imageData, uint8Array, index) => {
+    const dataView = new DataView(uint8Array.buffer, index);
+    dataView.setUint32(0, imageData.width, true);
+    dataView.setUint32(4, imageData.height, true);
+    const srcData = new Uint8Array(imageData.data.buffer, imageData.data.byteOffset, imageData.data.byteLength);
+    uint8Array.set(srcData, index + 8);
+  };
+  _serializeImage.normalize = image => {
+    if (!(image instanceof ImageData)) {
+      // draw to canvas to convert to ImageData
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d');
+      context.drawImage(image, 0, 0);
+      image = context.getImageData(0, 0, image.width, image.height);
+    }
+    return image;
+  };
+  _serializeImage.getSize = imageData => {
+    const size = 8 + imageData.data.byteLength;
+    // if (align4(imageData.data.byteLength) !== imageData.data.byteLength) {
+    //   throw new Error('invalid image data size');
+    // }
+    return size;
+  };
+  
   return [
     null, // start at 1
     _serializedTypedArray, // Uint8Array
@@ -51,6 +102,7 @@ const ADDENDUM_SERIALIZERS = (() => {
     _serializedTypedArray, // Float32Array
     _serializedTypedArray, // Float64Array
     _serializeArrayBuffer, // ArrayBuffer
+    _serializeImage, // ImageData
   ];
 })();
 
@@ -68,6 +120,10 @@ const encodableConstructors = [
   Float32Array,
   Float64Array,
   ArrayBuffer,
+  HTMLImageElement,
+  HTMLCanvasElement,
+  ImageData,
+  ImageBitmap,
 ];
 const _isAddendumEncodable = o =>
   encodableConstructors.includes(
@@ -131,7 +187,9 @@ function zbencode(o) {
     // totalSize += addendum.byteLength; // data
     const addendumType = addendumTypes[i];
     const Serializer = ADDENDUM_SERIALIZERS[addendumType];
-    const addendumByteLength = Serializer.getSize(addendum);
+    const normalizedAddendum = Serializer.normalize(addendum);
+    addendums[i] = normalizedAddendum;
+    const addendumByteLength = Serializer.getSize(normalizedAddendum);
     totalSize += align4(addendumByteLength);
   }
   
@@ -255,6 +313,7 @@ function zbdecode(uint8Array) {
     }
     if (currentAddendum !== addendums.length) {
       console.warn('did not bind all addendums', j, currentAddendum, addendums);
+      debugger;
     }
     return j;
   }
