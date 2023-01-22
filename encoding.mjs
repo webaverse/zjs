@@ -144,19 +144,43 @@ function zbencode(o) {
       let recursionIndex = 0;
       const _recurseExtractAddendums = o => {
         recursionIndex++;
+
+        if (o === undefined) {
+          throw new Error('zjs: found undefined value; if you want to encode undefined, use null instead');
+        }
+        
         if (_isAddendumEncodable(o)) {
           addendums.push(o);
           addendumIndexes.push(recursionIndex);
           const addendumType = ADDENDUM_TYPES.get(o.constructor);
           addendumTypes.push(addendumType)
           return null;
+        } else if (Array.isArray(o)) {
+          if (o.length === 2 && typeof o[0] === 'string') {
+            recursionIndex++;
+            return [
+              o[0],
+              _recurseExtractAddendums(o[1]),
+            ];
+          } else {
+            const o2 = [];
+            for (let i = 0; i < o.length; i++) {
+              o2[i] = _recurseExtractAddendums(o[i]);
+            }
+            return o2;
+          }
+        } else if (typeof o === 'object' && o !== null) {
+          const o2 = {};
+          for (const k in o) {
+            o2[k] = _recurseExtractAddendums(o[k]);
+          }
+          return o2;
         } else {
           return o;
         }
       };
-      const s = JSON.stringify(o, function(k, v) {
-        return _recurseExtractAddendums(v);
-      });
+      o = _recurseExtractAddendums(o);
+      const s = JSON.stringify(o);
       let result;
       for (;;) {
         result = textEncoder.encodeInto(s, textUint8Array);
@@ -263,9 +287,6 @@ function zbdecode(uint8Array) {
     index += Uint32Array.BYTES_PER_ELEMENT;
     
     const TypedArrayCons = ADDENDUM_CONSTRUCTORS[addendumType];
-    /* if (!TypedArrayCons) {
-      console.warn('failed to find typed array cons for', addendumType);
-    } */
     const addendum = TypedArrayCons(
       uint8Array.buffer,
       uint8Array.byteOffset + index,
